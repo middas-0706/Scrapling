@@ -1,16 +1,26 @@
-<p align=center>
-  <br>
-  <a href="https://scrapling.readthedocs.io/en/latest/" target="_blank"><img src="https://raw.githubusercontent.com/D4Vinci/Scrapling/main/images/poster.png" style="width: 50%; height: 100%;" alt="main poster"/></a>
-  <br>
-  <i><code>Простой, легкий веб-скрапинг, каким он и должен быть!</code></i>
-</p>
+<!-- mcp-name: io.github.D4Vinci/Scrapling -->
+
+<h1 align="center">
+    <a href="https://scrapling.readthedocs.io">
+        <picture>
+          <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/D4Vinci/Scrapling/main/docs/assets/cover_dark.svg?sanitize=true">
+          <img alt="Scrapling Poster" src="https://raw.githubusercontent.com/D4Vinci/Scrapling/main/docs/assets/cover_light.svg?sanitize=true">
+        </picture>
+    </a>
+    <br>
+    <small>Effortless Web Scraping for the Modern Web</small>
+</h1>
+
 <p align="center">
     <a href="https://github.com/D4Vinci/Scrapling/actions/workflows/tests.yml" alt="Tests">
         <img alt="Tests" src="https://github.com/D4Vinci/Scrapling/actions/workflows/tests.yml/badge.svg"></a>
     <a href="https://badge.fury.io/py/Scrapling" alt="PyPI version">
         <img alt="PyPI version" src="https://badge.fury.io/py/Scrapling.svg"></a>
-    <a href="https://pepy.tech/project/scrapling" alt="PyPI Downloads">
-        <img alt="PyPI Downloads" src="https://static.pepy.tech/personalized-badge/scrapling?period=total&units=INTERNATIONAL_SYSTEM&left_color=GREY&right_color=GREEN&left_text=Downloads"></a>
+    <a href="https://clickpy.clickhouse.com/dashboard/scrapling" rel="nofollow"><img src="https://img.shields.io/pypi/dm/scrapling" alt="PyPI package downloads"></a>
+    <a href="https://github.com/D4Vinci/Scrapling/tree/main/agent-skill" alt="AI Agent Skill directory">
+        <img alt="Static Badge" src="https://img.shields.io/badge/Skill-black?style=flat&label=Agent&link=https%3A%2F%2Fgithub.com%2FD4Vinci%2FScrapling%2Ftree%2Fmain%2Fagent-skill"></a>
+    <a href="https://clawhub.ai/D4Vinci/scrapling-official" alt="OpenClaw Skill">
+        <img alt="OpenClaw Skill" src="https://img.shields.io/badge/Clawhub-darkred?style=flat&label=OpenClaw&link=https%3A%2F%2Fclawhub.ai%2FD4Vinci%2Fscrapling-official"></a>
     <br/>
     <a href="https://discord.gg/EMgGbDceNQ" alt="Discord" target="_blank">
       <img alt="Discord" src="https://img.shields.io/discord/1360786381042880532?style=social&logo=discord&link=https%3A%2F%2Fdiscord.gg%2FEMgGbDceNQ">
@@ -24,58 +34,187 @@
 </p>
 
 <p align="center">
-    <a href="https://scrapling.readthedocs.io/en/latest/parsing/selection/">
-        Методы выбора
-    </a>
-    ·
-    <a href="https://scrapling.readthedocs.io/en/latest/fetching/choosing/">
-        Выбор фетчера
-    </a>
-    ·
-    <a href="https://scrapling.readthedocs.io/en/latest/cli/overview/">
-        CLI
-    </a>
-    ·
-    <a href="https://scrapling.readthedocs.io/en/latest/ai/mcp-server/">
-        Режим MCP
-    </a>
-    ·
-    <a href="https://scrapling.readthedocs.io/en/latest/tutorials/migrating_from_beautifulsoup/">
-        Миграция с Beautifulsoup
+    <a href="https://scrapling.readthedocs.io/en/latest/parsing/selection.html"><strong>Методы выбора</strong></a>
+    &middot;
+    <a href="https://scrapling.readthedocs.io/en/latest/fetching/choosing.html"><strong>Выбор Fetcher</strong></a>
+    &middot;
+    <a href="https://scrapling.readthedocs.io/en/latest/spiders/architecture.html"><strong>Пауки</strong></a>
+    &middot;
+    <a href="https://scrapling.readthedocs.io/en/latest/spiders/proxy-blocking.html"><strong>Ротация прокси</strong></a>
+    &middot;
+    <a href="https://scrapling.readthedocs.io/en/latest/cli/overview.html"><strong>CLI</strong></a>
+    &middot;
+    <a href="https://scrapling.readthedocs.io/en/latest/ai/mcp-server.html"><strong>Режим MCP</strong></a>
+</p>
+
+Scrapling - это адаптивный фреймворк для Web Scraping, который берёт на себя всё: от одного запроса до полномасштабного обхода сайтов.
+
+Его парсер учится на изменениях сайтов и автоматически перемещает ваши элементы при обновлении страниц. Его Fetcher'ы обходят анти-бот системы вроде Cloudflare Turnstile прямо из коробки. А его Spider-фреймворк позволяет масштабироваться до параллельных, многосессионных обходов с Pause & Resume и автоматической ротацией Proxy - и всё это в нескольких строках Python. Одна библиотека, без компромиссов.
+
+Молниеносно быстрые обходы с отслеживанием статистики в реальном времени и Streaming. Создано веб-скраперами для веб-скраперов и обычных пользователей - здесь есть что-то для каждого.
+
+```python
+from scrapling.fetchers import Fetcher, AsyncFetcher, StealthyFetcher, DynamicFetcher
+StealthyFetcher.adaptive = True
+p = StealthyFetcher.fetch('https://example.com', headless=True, network_idle=True)  # Загрузите сайт незаметно!
+products = p.css('.product', auto_save=True)                                        # Скрапьте данные, которые переживут изменения дизайна сайта!
+products = p.css('.product', adaptive=True)                                         # Позже, если структура сайта изменится, передайте `adaptive=True`, чтобы найти их!
+```
+Или масштабируйте до полного обхода
+```python
+from scrapling.spiders import Spider, Response
+
+class MySpider(Spider):
+  name = "demo"
+  start_urls = ["https://example.com/"]
+
+  async def parse(self, response: Response):
+      for item in response.css('.product'):
+          yield {"title": item.css('h2::text').get()}
+
+MySpider().start()
+```
+
+<p align="center">
+    <a href="https://dataimpulse.com/?utm_source=scrapling&utm_medium=banner&utm_campaign=scrapling" target="_blank" style="display:flex; justify-content:center; padding:4px 0;">
+        <img src="https://raw.githubusercontent.com/D4Vinci/Scrapling/main/images/DataImpulse.png" alt="At DataImpulse, we specialize in developing custom proxy services for your business. Make requests from anywhere, collect data, and enjoy fast connections with our premium proxies." style="max-height:60px;">
     </a>
 </p>
 
-**Прекратите бороться с анти-ботовыми системами. Прекратите переписывать селекторы после каждого обновления сайта.**
+# Платиновые спонсоры
+<table>
+  <tr>
+    <td width="200">
+      <a href="https://coldproxy.com/" target="_blank" title="Residential, IPv6 & Datacenter Proxies for Web Scraping">
+        <img src="https://raw.githubusercontent.com/D4Vinci/Scrapling/main/images/coldproxy.png">
+      </a>
+    </td>
+    <td> <a href="https://coldproxy.com/" target="_blank"><b>ColdProxy</b></a> предоставляет резидентные и дата-центровые прокси для стабильного веб-скрейпинга, сбора публичных данных и гео-таргетированного тестирования в более чем 195 странах.
+    </td>
+  </tr>
+  <tr>
+    <td width="200">
+      <a href="https://hypersolutions.co/?utm_source=github&utm_medium=readme&utm_campaign=scrapling" target="_blank" title="Bot Protection Bypass API for Akamai, DataDome, Incapsula & Kasada">
+        <img src="https://raw.githubusercontent.com/D4Vinci/Scrapling/main/images/HyperSolutions.png">
+      </a>
+    </td>
+    <td> Scrapling справляется с Cloudflare Turnstile. Для защиты корпоративного уровня
+      <a href="https://hypersolutions.co?utm_source=github&utm_medium=readme&utm_campaign=scrapling">
+        <b>Hyper Solutions</b>
+      </a> предоставляет API-эндпоинты, генерирующие валидные antibot-токены для <b>Akamai</b>, <b>DataDome</b>, <b>Kasada</b> и <b>Incapsula</b> . Простые API-вызовы, без автоматизации браузера.
+    </td>
+  </tr>
+  <tr>
+    <td width="200">
+      <a href="https://birdproxies.com/t/scrapling" target="_blank" title="At Bird Proxies, we eliminate your pains such as banned IPs, geo restriction, and high costs so you can focus on your work.">
+        <img src="https://raw.githubusercontent.com/D4Vinci/Scrapling/main/images/BirdProxies.jpg">
+      </a>
+    </td>
+    <td>Мы создали
+      <a href="https://birdproxies.com/t/scrapling">
+        <b>BirdProxies</b>
+      </a>, потому что прокси не должны быть сложными или дорогими. <br /> Быстрые резидентные и ISP прокси в 195+ локациях, честные цены и настоящая поддержка. <br />
+      <b>Попробуйте нашу игру FlappyBird на лендинге и получите бесплатные данные!</b>
+    </td>
+  </tr>
+  <tr>
+    <td width="200">
+      <a href="https://evomi.com?utm_source=github&utm_medium=banner&utm_campaign=d4vinci-scrapling" target="_blank" title="Evomi is your Swiss Quality Proxy Provider, starting at $0.49/GB">
+        <img src="https://raw.githubusercontent.com/D4Vinci/Scrapling/main/images/evomi.png">
+      </a>
+    </td>
+    <td>
+      <a href="https://evomi.com?utm_source=github&utm_medium=banner&utm_campaign=d4vinci-scrapling">
+        <b>Evomi</b>
+      </a>: резидентные прокси от $0.49/ГБ. Браузер для скрапинга с полностью подменённым Chromium, резидентными IP, автоматическим решением CAPTCHA и обходом анти-бот систем. </br>
+      <b>Scraper API для получения результатов без лишних сложностей. Доступны интеграции с MCP и N8N.</b>
+    </td>
+  </tr>
+  <tr>
+    <td width="200">
+      <a href="https://tikhub.io/?utm_source=github.com/D4Vinci/Scrapling&utm_medium=marketing_social&utm_campaign=retargeting&utm_content=carousel_ad" target="_blank" title="Unlock the Power of Social Media Data & AI">
+        <img src="https://raw.githubusercontent.com/D4Vinci/Scrapling/main/images/TikHub.jpg">
+      </a>
+    </td>
+    <td>
+      <a href="https://tikhub.io/?utm_source=github.com/D4Vinci/Scrapling&utm_medium=marketing_social&utm_campaign=retargeting&utm_content=carousel_ad" target="_blank">TikHub.io</a> предоставляет более 900 стабильных API на 16+ платформах, включая TikTok, X, YouTube и Instagram, с более чем 40 млн наборов данных. <br /> Также предлагает <a href="https://ai.tikhub.io/?ref=KarimShoair" target="_blank">AI-модели со скидкой</a> - Claude, GPT, GEMINI и другие со скидкой до 71%.
+    </td>
+  </tr>
+  <tr>
+    <td width="200">
+      <a href="https://www.nsocks.com/?keyword=2p67aivg" target="_blank" title="Scalable Web Data Access for AI Applications">
+        <img src="https://raw.githubusercontent.com/D4Vinci/Scrapling/main/images/nsocks.png">
+      </a>
+    </td>
+    <td>
+    <a href="https://www.nsocks.com/?keyword=2p67aivg" target="_blank">Nsocks</a> предоставляет быстрые резидентные и ISP прокси для разработчиков и скраперов. Глобальное покрытие IP, высокая анонимность, умная ротация и надёжная производительность для автоматизации и извлечения данных. Используйте <a href="https://www.xcrawl.com/?keyword=2p67aivg" target="_blank">Xcrawl</a> для упрощения масштабного веб-краулинга.
+    </td>
+  </tr>
+  <tr>
+    <td width="200">
+      <a href="https://petrosky.io/d4vinci" target="_blank" title="PetroSky delivers cutting-edge VPS hosting.">
+        <img src="https://raw.githubusercontent.com/D4Vinci/Scrapling/main/images/petrosky.png">
+      </a>
+    </td>
+    <td>
+    Закройте ноутбук. Ваши скраперы продолжают работать. <br />
+    <a href="https://petrosky.io/d4vinci" target="_blank">PetroSky VPS</a> - облачные серверы для непрерывной автоматизации. Машины на Windows и Linux с полным контролем. От €6,99/мес.
+    </td>
+  </tr>
+  <tr>
+    <td width="200">
+      <a href="https://substack.thewebscraping.club/p/scrapling-hands-on-guide?utm_source=github&utm_medium=repo&utm_campaign=scrapling" target="_blank" title="The #1 newsletter dedicated to Web Scraping">
+        <img src="https://raw.githubusercontent.com/D4Vinci/Scrapling/main/images/TWSC.png">
+      </a>
+    </td>
+    <td>
+    Прочитайте полный обзор <a href="https://substack.thewebscraping.club/p/scrapling-hands-on-guide?utm_source=github&utm_medium=repo&utm_campaign=scrapling" target="_blank">Scrapling на The Web Scraping Club</a> (ноябрь 2025) - рассылка №1, посвящённая веб-скрейпингу.
+    </td>
+  </tr>
+  <tr>
+    <td width="200">
+      <a href="https://www.swiftproxy.net/?ref=D4Vinci" target="_blank" title="Scalable Solutions for Web Data Access">
+        <img src="https://raw.githubusercontent.com/D4Vinci/Scrapling/main/images/SwiftProxy.png">
+      </a>
+    </td>
+    <td>
+    <a href="https://www.swiftproxy.net/?ref=D4Vinci" target="_blank">Swiftproxy</a> предоставляет масштабируемые резидентные прокси с более чем 80 млн IP в 195+ странах, обеспечивая быстрые и надёжные соединения, автоматическую ротацию и высокую устойчивость к блокировкам. Доступна бесплатная пробная версия.
+    </td>
+  </tr>
+  <tr>
+    <td width="200">
+      <a href="https://9proxy.com/pricing?tab=traffic&utm_source=Github&utm_campaign=D4vinci" target="_blank" title="Top-Tier Residential Proxy Solution for the Highest Success Rate">
+        <img src="https://raw.githubusercontent.com/D4Vinci/Scrapling/main/images/9proxy.jpg">
+      </a>
+    </td>
+    <td>
+    <a href="https://9proxy.com/pricing?tab=traffic&utm_source=Github&utm_campaign=D4vinci" target="_blank">9Proxy</a> предоставляет резидентные прокси всего от $0,015 за IP или $0,68 за ГБ. Более 20 млн IP в 90+ странах. Закреплённые или ротационные сессии, управление через настольное или мобильное приложение.
+    </td>
+  </tr>
+  <tr>
+    <td width="200">
+      <a href="https://go.nodemaven.com/scrapling" target="_blank" title="Proxies with the Highest IP Scores">
+        <img src="https://raw.githubusercontent.com/D4Vinci/Scrapling/main/images/NodeMaven.png">
+      </a>
+    </td>
+    <td>
+    <a href="https://go.nodemaven.com/scrapling" target="_blank">NodeMaven</a> - надёжный провайдер прокси с самым высоким качеством IP на рынке. Используйте промокод SCRAPLING35 для получения скидки 35% на прокси.
+    </td>
+  </tr>
+</table>
 
-Scrapling - это не просто очередная библиотека для веб-скрапинга. Это первая **адаптивная** библиотека для скрапинга, которая учится на изменениях сайтов и развивается вместе с ними. В то время как другие библиотеки ломаются, когда сайты обновляют свою структуру, Scrapling автоматически перемещает ваши элементы и поддерживает работу ваших скраперов.
-
-Созданный для современного веба, Scrapling имеет **собственный быстрый движок парсинга** и фетчеры для решения всех задач веб-скрапинга, с которыми вы сталкиваетесь или столкнетесь. Созданный веб-скраперами для веб-скраперов и обычных пользователей, здесь есть что-то для каждого.
-
-```python
->> from scrapling.fetchers import Fetcher, AsyncFetcher, StealthyFetcher, DynamicFetcher
->> StealthyFetcher.adaptive = True
-# Получайте исходный код сайтов незаметно!
->> page = StealthyFetcher.fetch('https://example.com', headless=True, network_idle=True)
->> print(page.status)
-200
->> products = page.css('.product', auto_save=True)  # Скрапьте данные, которые переживут изменения дизайна сайта!
->> # Позже, если структура сайта изменится, передайте `adaptive=True`
->> products = page.css('.product', adaptive=True)  # и Scrapling все равно их найдет!
-```
-
-# Спонсоры 
+<i><sub>Хотите показать здесь свою рекламу? Нажмите [здесь](https://github.com/sponsors/D4Vinci/sponsorships?tier_id=586646)</sub></i>
+# Спонсоры
 
 <!-- sponsors -->
 
-<a href="https://www.scrapeless.com/en?utm_source=official&utm_term=scrapling" target="_blank" title="Effortless Web Scraping Toolkit for Business and Developers"><img src="https://raw.githubusercontent.com/D4Vinci/Scrapling/main/images/scrapeless.jpg"></a>
-<a href="https://www.thordata.com/?ls=github&lk=github" target="_blank" title="Unblockable proxies and scraping infrastructure, delivering real-time, reliable web data to power AI models and workflows."><img src="https://raw.githubusercontent.com/D4Vinci/Scrapling/main/images/thordata.jpg"></a>
-<a href="https://evomi.com?utm_source=github&utm_medium=banner&utm_campaign=d4vinci-scrapling" target="_blank" title="Evomi is your Swiss Quality Proxy Provider, starting at $0.49/GB"><img src="https://raw.githubusercontent.com/D4Vinci/Scrapling/main/images/evomi.png"></a>
 <a href="https://serpapi.com/?utm_source=scrapling" target="_blank" title="Scrape Google and other search engines with SerpApi"><img src="https://raw.githubusercontent.com/D4Vinci/Scrapling/main/images/SerpApi.png"></a>
 <a href="https://visit.decodo.com/Dy6W0b" target="_blank" title="Try the Most Efficient Residential Proxies for Free"><img src="https://raw.githubusercontent.com/D4Vinci/Scrapling/main/images/decodo.png"></a>
-<a href="https://petrosky.io/d4vinci" target="_blank" title="PetroSky delivers cutting-edge VPS hosting."><img src="https://raw.githubusercontent.com/D4Vinci/Scrapling/main/images/petrosky.png"></a>
-<a href="https://www.swiftproxy.net/" target="_blank" title="Unlock Reliable Proxy Services with Swiftproxy!"><img src="https://raw.githubusercontent.com/D4Vinci/Scrapling/main/images/swiftproxy.png"></a>
-<a href="https://www.rapidproxy.io/?ref=d4v" target="_blank" title="Affordable Access to the Proxy World – bypass CAPTCHAs blocks, and avoid additional costs."><img src="https://raw.githubusercontent.com/D4Vinci/Scrapling/main/images/rapidproxy.jpg"></a>
-<a href="https://browser.cash/?utm_source=D4Vinci&utm_medium=referral" target="_blank" title="Browser Automation & AI Browser Agent Platform"><img src="https://raw.githubusercontent.com/D4Vinci/Scrapling/main/images/browserCash.png"></a>
+<a href="https://hasdata.com/?utm_source=github&utm_medium=banner&utm_campaign=D4Vinci" target="_blank" title="The web scraping service that actually beats anti-bot systems!"><img src="https://raw.githubusercontent.com/D4Vinci/Scrapling/main/images/hasdata.png"></a>
+<a href="https://proxyempire.io/?ref=scrapling&utm_source=scrapling" target="_blank" title="Collect The Data Your Project Needs with the Best Residential Proxies"><img src="https://raw.githubusercontent.com/D4Vinci/Scrapling/main/images/ProxyEmpire.png"></a>
+<a href="https://www.webshare.io/?referral_code=48r2m2cd5uz1" target="_blank" title="The Most Reliable Proxy with Unparalleled Performance"><img src="https://raw.githubusercontent.com/D4Vinci/Scrapling/main/images/webshare.png"></a>
+<a href="https://proxiware.com/?ref=scrapling" target="_blank" title="Collect Any Data. At Any Scale."><img src="https://raw.githubusercontent.com/D4Vinci/Scrapling/main/images/proxiware.png"></a>
+
 
 <!-- /sponsors -->
 
@@ -85,140 +224,215 @@ Scrapling - это не просто очередная библиотека д�
 
 ## Ключевые особенности
 
-### Продвинутая загрузка сайтов с поддержкой сессий
-- **HTTP-запросы**: Быстрые и скрытные HTTP-запросы с классом `Fetcher`. Может имитировать TLS-отпечаток браузера, заголовки и использовать HTTP3.
-- **Динамическая загрузка**: Загрузка динамических сайтов с полной автоматизацией браузера через класс `DynamicFetcher`, поддерживающий Chromium от Playwright, настоящий Chrome и пользовательский режим скрытности.
-- **Обход анти-ботов**: Расширенные возможности скрытности с `StealthyFetcher`, использующим модифицированную версию Firefox и подмену отпечатков. Может легко обойти все типы Turnstile и Interstitial от Cloudflare с помощью автоматизации.
+### Spider'ы - полноценный фреймворк для обхода сайтов
+- 🕷️ **Scrapy-подобный Spider API**: Определяйте Spider'ов с `start_urls`, async `parse` callback'ами и объектами `Request`/`Response`.
+- ⚡ **Параллельный обход**: Настраиваемые лимиты параллелизма, ограничение скорости по домену и задержки загрузки.
+- 🔄 **Поддержка нескольких сессий**: Единый интерфейс для HTTP-запросов и скрытных headless-браузеров в одном Spider - маршрутизируйте запросы к разным сессиям по ID.
+- 💾 **Pause & Resume**: Persistence обхода на основе Checkpoint'ов. Нажмите Ctrl+C для мягкой остановки; перезапустите, чтобы продолжить с того места, где вы остановились.
+- 📡 **Режим Streaming**: Стримьте извлечённые элементы по мере их поступления через `async for item in spider.stream()` со статистикой в реальном времени - идеально для UI, конвейеров и длительных обходов.
+- 🛡️ **Обнаружение заблокированных запросов**: Автоматическое обнаружение и повторная отправка заблокированных запросов с настраиваемой логикой.
+- 🤖 **Соответствие robots.txt**: Опциональный флаг `robots_txt_obey`, который учитывает директивы `Disallow`, `Crawl-delay` и `Request-rate` с кэшированием по доменам.
+- 🧪 **Режим разработки**: Кэшируйте ответы на диск при первом запуске и воспроизводите их при последующих запусках - итерируйте над логикой `parse()`, не отправляя повторные запросы к целевым серверам.
+- 📦 **Встроенный экспорт**: Экспортируйте результаты через хуки и собственный конвейер или встроенный JSON/JSONL с `result.items.to_json()` / `result.items.to_jsonl()` соответственно.
+
+### Продвинутая загрузка сайтов с поддержкой Session
+- **HTTP-запросы**: Быстрые и скрытные HTTP-запросы с классом `Fetcher`. Может имитировать TLS fingerprint браузера, заголовки и использовать HTTP/3.
+- **Динамическая загрузка**: Загрузка динамических сайтов с полной автоматизацией браузера через класс `DynamicFetcher`, поддерживающий Chromium от Playwright и Google Chrome.
+- **Обход анти-ботов**: Расширенные возможности скрытности с `StealthyFetcher` и подмену fingerprint'ов. Может легко обойти все типы Cloudflare Turnstile/Interstitial с помощью автоматизации.
 - **Управление сессиями**: Поддержка постоянных сессий с классами `FetcherSession`, `StealthySession` и `DynamicSession` для управления cookie и состоянием между запросами.
-- **Поддержка асинхронности**: Полная асинхронная поддержка во всех фетчерах и выделенных асинхронных классах сессий.
+- **Ротация Proxy**: Встроенный `ProxyRotator` с циклической или пользовательскими стратегиями для всех типов сессий, а также переопределение Proxy для каждого запроса.
+- **Блокировка доменов и рекламы**: Блокируйте запросы к определённым доменам (и их поддоменам) или включите встроенную блокировку рекламы (~3 500 известных рекламных/трекерных доменов) в браузерных Fetcher'ах.
+- **Защита от утечки DNS**: Опциональная поддержка DNS-over-HTTPS для маршрутизации DNS-запросов через Cloudflare DoH, предотвращая утечку DNS при использовании прокси.
+- **Поддержка async**: Полная async-поддержка во всех Fetcher'ах и выделенных async-классах сессий.
 
 ### Адаптивный скрапинг и интеграция с ИИ
 - 🔄 **Умное отслеживание элементов**: Перемещайте элементы после изменений сайта с помощью интеллектуальных алгоритмов подобия.
 - 🎯 **Умный гибкий выбор**: CSS-селекторы, XPath-селекторы, поиск на основе фильтров, текстовый поиск, поиск по регулярным выражениям и многое другое.
-- 🔍 **Поиск похожих элементов**: Автоматически находите элементы, похожие на найденные элементы.
-- 🤖 **MCP-сервер для использования с ИИ**: Встроенный MCP-сервер для веб-скрапинга с помощью ИИ и извлечения данных. MCP-сервер обладает пользовательскими, мощными возможностями, которые используют Scrapling для извлечения целевого контента перед передачей его ИИ (Claude/Cursor/и т.д.), тем самым ускоряя операции и снижая затраты за счет минимизации использования токенов. ([демо-видео](https://www.youtube.com/watch?v=qyFk3ZNwOxE))
+- 🔍 **Поиск похожих элементов**: Автоматически находите элементы, похожие на найденные.
+- 🤖 **MCP-сервер для использования с ИИ**: Встроенный MCP-сервер для Web Scraping с помощью ИИ и извлечения данных. MCP-сервер обладает мощными пользовательскими возможностями, которые используют Scrapling для извлечения целевого контента перед передачей его ИИ (Claude/Cursor/и т.д.), тем самым ускоряя операции и снижая затраты за счёт минимизации использования токенов. ([демо-видео](https://www.youtube.com/watch?v=qyFk3ZNwOxE))
 
 ### Высокопроизводительная и проверенная в боях архитектура
-- 🚀 **Молниеносно быстро**: Оптимизированная производительность превосходит большинство библиотек скрапинга Python.
+- 🚀 **Молниеносная скорость**: Оптимизированная производительность, превосходящая большинство Python-библиотек для скрапинга.
 - 🔋 **Эффективное использование памяти**: Оптимизированные структуры данных и ленивая загрузка для минимального потребления памяти.
-- ⚡ **Быстрая сериализация JSON**: В 10 раз быстрее, чем стандартная библиотека.
+- ⚡ **Быстрая сериализация JSON**: В 10 раз быстрее стандартной библиотеки.
 - 🏗️ **Проверено в боях**: Scrapling имеет не только 92% покрытия тестами и полное покрытие type hints, но и ежедневно использовался сотнями веб-скраперов в течение последнего года.
 
 ### Удобный для разработчиков/веб-скраперов опыт
-- 🎯 **Интерактивная оболочка веб-скрапинга**: Опциональная встроенная оболочка IPython с интеграцией Scrapling, ярлыками и новыми инструментами для ускорения разработки скриптов веб-скрапинга, такими как преобразование curl-запросов в Scrapling-запросы и просмотр результатов запросов в вашем браузере.
+- 🎯 **Интерактивная Web Scraping Shell**: Опциональная встроенная IPython-оболочка с интеграцией Scrapling, ярлыками и новыми инструментами для ускорения разработки скриптов Web Scraping, такими как преобразование curl-запросов в запросы Scrapling и просмотр результатов запросов в браузере.
 - 🚀 **Используйте прямо из терминала**: При желании вы можете использовать Scrapling для скрапинга URL без написания ни одной строки кода!
 - 🛠️ **Богатый API навигации**: Расширенный обход DOM с методами навигации по родителям, братьям и детям.
 - 🧬 **Улучшенная обработка текста**: Встроенные регулярные выражения, методы очистки и оптимизированные операции со строками.
-- 📝 **Автоматическая генерация селекторов**: Генерация надежных CSS/XPath селекторов для любого элемента.
+- 📝 **Автоматическая генерация селекторов**: Генерация надёжных CSS/XPath-селекторов для любого элемента.
 - 🔌 **Знакомый API**: Похож на Scrapy/BeautifulSoup с теми же псевдоэлементами, используемыми в Scrapy/Parsel.
-- 📘 **Полное покрытие типами**: Полные подсказки типов для отличной поддержки IDE и автодополнения кода.
-- 🔋 **Готовый Docker-образ**: С каждым релизом автоматически создается и отправляется Docker-образ, содержащий все браузеры.
+- 📘 **Полное покрытие типами**: Полные type hints для отличной поддержки IDE и автодополнения кода. Вся кодовая база автоматически проверяется **PyRight** и **MyPy** при каждом изменении.
+- 🔋 **Готовый Docker-образ**: С каждым релизом автоматически создаётся и публикуется Docker-образ, содержащий все браузеры.
 
 ## Начало работы
 
-### Базовое использование
-```python
-from scrapling.fetchers import Fetcher, StealthyFetcher, DynamicFetcher
-from scrapling.fetchers import FetcherSession, StealthySession, DynamicSession
+Давайте кратко покажем, на что способен Scrapling, без глубокого погружения.
 
-# HTTP-запросы с поддержкой сессий
-with FetcherSession(impersonate='chrome') as session:  # Используйте последнюю версию TLS-отпечатка Chrome
+### Базовое использование
+HTTP-запросы с поддержкой Session
+```python
+from scrapling.fetchers import Fetcher, FetcherSession
+
+with FetcherSession(impersonate='chrome') as session:  # Используйте последнюю версию TLS fingerprint Chrome
     page = session.get('https://quotes.toscrape.com/', stealthy_headers=True)
-    quotes = page.css('.quote .text::text')
+    quotes = page.css('.quote .text::text').getall()
 
 # Или используйте одноразовые запросы
 page = Fetcher.get('https://quotes.toscrape.com/')
-quotes = page.css('.quote .text::text')
+quotes = page.css('.quote .text::text').getall()
+```
+Расширенный режим скрытности
+```python
+from scrapling.fetchers import StealthyFetcher, StealthySession
 
-# Расширенный режим скрытности (Держите браузер открытым до завершения)
-with StealthySession(headless=True, solve_cloudflare=True) as session:
+with StealthySession(headless=True, solve_cloudflare=True) as session:  # Держите браузер открытым, пока не закончите
     page = session.fetch('https://nopecha.com/demo/cloudflare', google_search=False)
-    data = page.css('#padded_content a')
+    data = page.css('#padded_content a').getall()
 
-# Или используйте стиль одноразового запроса, открывает браузер для этого запроса, затем закрывает его после завершения
+# Или используйте стиль одноразового запроса - открывает браузер для этого запроса, затем закрывает его после завершения
 page = StealthyFetcher.fetch('https://nopecha.com/demo/cloudflare')
-data = page.css('#padded_content a')
-    
-# Полная автоматизация браузера (Держите браузер открытым до завершения)
-with DynamicSession(headless=True) as session:
-    page = session.fetch('https://quotes.toscrape.com/', network_idle=True)
-    quotes = page.css('.quote .text::text')
+data = page.css('#padded_content a').getall()
+```
+Полная автоматизация браузера
+```python
+from scrapling.fetchers import DynamicFetcher, DynamicSession
 
-# Или используйте стиль одноразового запроса
-page = DynamicFetcher.fetch('https://quotes.toscrape.com/', network_idle=True)
-quotes = page.css('.quote .text::text')
+with DynamicSession(headless=True, disable_resources=False, network_idle=True) as session:  # Держите браузер открытым, пока не закончите
+    page = session.fetch('https://quotes.toscrape.com/', load_dom=False)
+    data = page.xpath('//span[@class="text"]/text()').getall()  # XPath-селектор, если вы предпочитаете его
+
+# Или используйте стиль одноразового запроса - открывает браузер для этого запроса, затем закрывает его после завершения
+page = DynamicFetcher.fetch('https://quotes.toscrape.com/')
+data = page.css('.quote .text::text').getall()
 ```
 
-### Выбор элементов
+### Spider'ы
+Создавайте полноценные обходчики с параллельными запросами, несколькими типами сессий и Pause & Resume:
 ```python
-# CSS-селекторы
-page.css('a::text')                      # Извлечь текст
-page.css('a::attr(href)')                # Извлечь атрибуты
-page.css('a', recursive=False)           # Только прямые элементы
-page.css('a', auto_save=True)            # Автоматически сохранять позиции элементов
+from scrapling.spiders import Spider, Request, Response
 
-# XPath
-page.xpath('//a/text()')
+class QuotesSpider(Spider):
+    name = "quotes"
+    start_urls = ["https://quotes.toscrape.com/"]
+    concurrent_requests = 10
 
-# Гибкий поиск
-page.find_by_text('Python', first_match=True)  # Найти по тексту
-page.find_by_regex(r'\d{4}')                   # Найти по паттерну regex
-page.find('div', {'class': 'container'})       # Найти по атрибутам
+    async def parse(self, response: Response):
+        for quote in response.css('.quote'):
+            yield {
+                "text": quote.css('.text::text').get(),
+                "author": quote.css('.author::text').get(),
+            }
 
-# Навигация
-element.parent                           # Получить родительский элемент
-element.next_sibling                     # Получить следующего брата
-element.children                         # Получить дочерние элементы
+        next_page = response.css('.next a')
+        if next_page:
+            yield response.follow(next_page[0].attrib['href'])
 
-# Похожие элементы
-similar = page.get_similar(element)      # Найти похожие элементы
-
-# Адаптивный скрапинг
-saved_elements = page.css('.product', auto_save=True)
-# Позже, когда сайт изменится:
-page.css('.product', adaptive=True)      # Найти элементы используя сохраненные позиции
+result = QuotesSpider().start()
+print(f"Извлечено {len(result.items)} цитат")
+result.items.to_json("quotes.json")
 ```
-
-### Использование сессий
+Используйте несколько типов сессий в одном Spider:
 ```python
-from scrapling.fetchers import FetcherSession, AsyncFetcherSession
+from scrapling.spiders import Spider, Request, Response
+from scrapling.fetchers import FetcherSession, AsyncStealthySession
 
-# Синхронная сессия
-with FetcherSession() as session:
-    # Cookie автоматически сохраняются
-    page1 = session.get('https://quotes.toscrape.com/login')
-    page2 = session.post('https://quotes.toscrape.com/login', data={'username': 'admin', 'password': 'admin'})
-    
-    # При необходимости переключите отпечаток браузера
+class MultiSessionSpider(Spider):
+    name = "multi"
+    start_urls = ["https://example.com/"]
+
+    def configure_sessions(self, manager):
+        manager.add("fast", FetcherSession(impersonate="chrome"))
+        manager.add("stealth", AsyncStealthySession(headless=True), lazy=True)
+
+    async def parse(self, response: Response):
+        for link in response.css('a::attr(href)').getall():
+            # Направляйте защищённые страницы через stealth-сессию
+            if "protected" in link:
+                yield Request(link, sid="stealth")
+            else:
+                yield Request(link, sid="fast", callback=self.parse)  # явный callback
+```
+Приостанавливайте и возобновляйте длительные обходы с помощью Checkpoint'ов, запуская Spider следующим образом:
+```python
+QuotesSpider(crawldir="./crawl_data").start()
+```
+Нажмите Ctrl+C для мягкой остановки - прогресс сохраняется автоматически. Позже, когда вы снова запустите Spider, передайте тот же `crawldir`, и он продолжит с того места, где остановился.
+
+### Продвинутый парсинг и навигация
+```python
+from scrapling.fetchers import Fetcher
+
+# Богатый выбор элементов и навигация
+page = Fetcher.get('https://quotes.toscrape.com/')
+
+# Получение цитат различными методами выбора
+quotes = page.css('.quote')  # CSS-селектор
+quotes = page.xpath('//div[@class="quote"]')  # XPath
+quotes = page.find_all('div', {'class': 'quote'})  # В стиле BeautifulSoup
+# То же самое, что
+quotes = page.find_all('div', class_='quote')
+quotes = page.find_all(['div'], class_='quote')
+quotes = page.find_all(class_='quote')  # и так далее...
+# Найти элемент по текстовому содержимому
+quotes = page.find_by_text('quote', tag='div')
+
+# Продвинутая навигация
+quote_text = page.css('.quote')[0].css('.text::text').get()
+quote_text = page.css('.quote').css('.text::text').getall()  # Цепочка селекторов
+first_quote = page.css('.quote')[0]
+author = first_quote.next_sibling.css('.author::text')
+parent_container = first_quote.parent
+
+# Связи элементов и подобие
+similar_elements = first_quote.find_similar()
+below_elements = first_quote.below_elements()
+```
+Вы можете использовать парсер напрямую, если не хотите загружать сайты, как показано ниже:
+```python
+from scrapling.parser import Selector
+
+page = Selector("<html>...</html>")
+```
+И он работает точно так же!
+
+### Примеры async Session
+```python
+import asyncio
+from scrapling.fetchers import FetcherSession, AsyncStealthySession, AsyncDynamicSession
+
+async with FetcherSession(http3=True) as session:  # `FetcherSession` контекстно-осведомлён и может работать как в sync, так и в async-режимах
+    page1 = session.get('https://quotes.toscrape.com/')
     page2 = session.get('https://quotes.toscrape.com/', impersonate='firefox135')
 
-# Использование асинхронной сессии
+# Использование async-сессии
 async with AsyncStealthySession(max_pages=2) as session:
     tasks = []
     urls = ['https://example.com/page1', 'https://example.com/page2']
-    
+
     for url in urls:
         task = session.fetch(url)
         tasks.append(task)
-    
-    print(session.get_pool_stats())  # Опционально - Статус пула вкладок браузера (занят/свободен/ошибка)
+
+    print(session.get_pool_stats())  # Опционально - статус пула вкладок браузера (занят/свободен/ошибка)
     results = await asyncio.gather(*tasks)
     print(session.get_pool_stats())
 ```
 
-## CLI и интерактивная оболочка
+## CLI и интерактивная Shell
 
-Scrapling v0.3 включает мощный интерфейс командной строки:
+Scrapling включает мощный интерфейс командной строки:
 
 [![asciicast](https://asciinema.org/a/736339.svg)](https://asciinema.org/a/736339)
 
+Запустить интерактивную Web Scraping Shell
 ```bash
-# Запустить интерактивную оболочку веб-скрапинга
 scrapling shell
-
-# Извлечь страницы в файл напрямую без программирования (Извлекает содержимое внутри тега `body` по умолчанию)
-# Если выходной файл заканчивается на `.txt`, то будет извлечено текстовое содержимое цели.
-# Если заканчивается на `.md`, это будет markdown-представление HTML-содержимого, а `.html` будет непосредственно HTML-содержимым.
+```
+Извлечь страницы в файл напрямую без программирования (по умолчанию извлекает содержимое внутри тега `body`). Если выходной файл заканчивается на `.txt`, будет извлечено текстовое содержимое цели. Если заканчивается на `.md`, это будет Markdown-представление HTML-содержимого; если заканчивается на `.html`, это будет само HTML-содержимое.
+```bash
 scrapling extract get 'https://example.com' content.md
 scrapling extract get 'https://example.com' content.txt --css-selector '#fromSkipToProducts' --impersonate 'chrome'  # Все элементы, соответствующие CSS-селектору '#fromSkipToProducts'
 scrapling extract fetch 'https://example.com' content.md --css-selector '#fromSkipToProducts' --no-headless
@@ -226,24 +440,24 @@ scrapling extract stealthy-fetch 'https://nopecha.com/demo/cloudflare' captchas.
 ```
 
 > [!NOTE]
-> Есть много дополнительных функций, но мы хотим сохранить эту страницу краткой, например, MCP-сервер и интерактивная оболочка веб-скрапинга. Ознакомьтесь с полной документацией [здесь](https://scrapling.readthedocs.io/en/latest/)
+> Есть множество дополнительных возможностей, но мы хотим сохранить эту страницу краткой, включая MCP-сервер и интерактивную Web Scraping Shell. Ознакомьтесь с полной документацией [здесь](https://scrapling.readthedocs.io/en/latest/)
 
 ## Тесты производительности
 
-Scrapling не только мощный - он также невероятно быстрый, и обновления с версии 0.3 обеспечили исключительные улучшения производительности во всех операциях.
+Scrapling не только мощный - он ещё и невероятно быстрый. Следующие тесты производительности сравнивают парсер Scrapling с последними версиями других популярных библиотек.
 
 ### Тест скорости извлечения текста (5000 вложенных элементов)
 
-| # |    Библиотека     | Время (мс) | vs Scrapling | 
+| # |    Библиотека     | Время (мс) | vs Scrapling |
 |---|:-----------------:|:----------:|:------------:|
-| 1 |     Scrapling     |    1.99    |     1.0x     |
-| 2 |   Parsel/Scrapy   |    2.01    |    1.01x     |
-| 3 |     Raw Lxml      |    2.5     |    1.256x    |
-| 4 |      PyQuery      |   22.93    |    ~11.5x    |
-| 5 |    Selectolax     |   80.57    |    ~40.5x    |
-| 6 |   BS4 with Lxml   |  1541.37   |   ~774.6x    |
-| 7 |  MechanicalSoup   |  1547.35   |   ~777.6x    |
-| 8 | BS4 with html5lib |  3410.58   |   ~1713.9x   |
+| 1 |     Scrapling     |    2.02    |     1.0x     |
+| 2 |   Parsel/Scrapy   |    2.04    |     1.01     |
+| 3 |     Raw Lxml      |    2.54    |    1.257     |
+| 4 |      PyQuery      |   24.17    |     ~12x     |
+| 5 |    Selectolax     |   82.63    |     ~41x     |
+| 6 |  MechanicalSoup   |  1549.71   |   ~767.1x    |
+| 7 |   BS4 with Lxml   |  1584.31   |   ~784.3x    |
+| 8 | BS4 with html5lib |  3391.91   |   ~1679.1x   |
 
 
 ### Производительность подобия элементов и текстового поиска
@@ -252,8 +466,8 @@ Scrapling не только мощный - он также невероятно 
 
 | Библиотека  | Время (мс) | vs Scrapling |
 |-------------|:----------:|:------------:|
-| Scrapling   |    2.46    |     1.0x     |
-| AutoScraper |    13.3    |    5.407x    |
+| Scrapling   |    2.39    |     1.0x     |
+| AutoScraper |   12.45    |    5.209x    |
 
 
 > Все тесты производительности представляют собой средние значения более 100 запусков. См. [benchmarks.py](https://github.com/D4Vinci/Scrapling/blob/main/benchmarks.py) для методологии.
@@ -266,33 +480,42 @@ Scrapling требует Python 3.10 или выше:
 pip install scrapling
 ```
 
-Начиная с v0.3.2, эта установка включает только движок парсера и его зависимости, без каких-либо фетчеров или зависимостей командной строки.
+Эта установка включает только движок парсера и его зависимости, без каких-либо Fetcher'ов или зависимостей командной строки.
 
 ### Опциональные зависимости
 
-1. Если вы собираетесь использовать какие-либо из дополнительных функций ниже, фетчеры или их классы, то вам нужно установить зависимости фетчеров, а затем установить их зависимости браузера с помощью
+1. Если вы собираетесь использовать какие-либо из дополнительных возможностей ниже, Fetcher'ы или их классы, вам необходимо установить зависимости Fetcher'ов и браузеров следующим образом:
     ```bash
     pip install "scrapling[fetchers]"
-    
-    scrapling install
+
+    scrapling install           # normal install
+    scrapling install  --force  # force reinstall
     ```
 
-    Это загрузит все браузеры с их системными зависимостями и зависимостями манипуляции отпечатками.
+    Это загрузит все браузеры вместе с их системными зависимостями и зависимостями для манипуляции fingerprint'ами.
 
-2. Дополнительные функции:
+    Или вы можете установить их из кода вместо выполнения команды:
+    ```python
+    from scrapling.cli import install
+
+    install([], standalone_mode=False)          # normal install
+    install(["--force"], standalone_mode=False) # force reinstall
+    ```
+
+2. Дополнительные возможности:
    - Установить функцию MCP-сервера:
        ```bash
        pip install "scrapling[ai]"
        ```
-   - Установить функции оболочки (оболочка веб-скрапинга и команда `extract`):
+   - Установить функции Shell (Web Scraping Shell и команда `extract`):
        ```bash
        pip install "scrapling[shell]"
        ```
-   - Установить все:
+   - Установить всё:
        ```bash
        pip install "scrapling[all]"
        ```
-   Помните, что вам нужно установить зависимости браузера с помощью `scrapling install` после любого из этих дополнений (если вы еще этого не сделали)
+   Помните, что вам нужно установить зависимости браузеров с помощью `scrapling install` после любого из этих дополнений (если вы ещё этого не сделали)
 
 ### Docker
 Вы также можете установить Docker-образ со всеми дополнениями и браузерами с помощью следующей команды из DockerHub:
@@ -303,16 +526,28 @@ docker pull pyd4vinci/scrapling
 ```bash
 docker pull ghcr.io/d4vinci/scrapling:latest
 ```
-Этот образ автоматически создается и отправляется через GitHub actions в основной ветке репозитория.
+Этот образ автоматически создаётся и публикуется с помощью GitHub Actions и основной ветки репозитория.
 
-## Вклад
+## Участие в разработке
 
-Мы приветствуем вклад! Пожалуйста, прочитайте наши [руководства по внесению вклада](https://github.com/D4Vinci/Scrapling/blob/main/CONTRIBUTING.md) перед началом работы.
+Мы приветствуем участие! Пожалуйста, прочитайте наши [руководства по участию в разработке](https://github.com/D4Vinci/Scrapling/blob/main/CONTRIBUTING.md) перед началом работы.
 
 ## Отказ от ответственности
 
 > [!CAUTION]
 > Эта библиотека предоставляется только в образовательных и исследовательских целях. Используя эту библиотеку, вы соглашаетесь соблюдать местные и международные законы о скрапинге данных и конфиденциальности. Авторы и участники не несут ответственности за любое неправомерное использование этого программного обеспечения. Всегда уважайте условия обслуживания веб-сайтов и файлы robots.txt.
+
+## 🎓 Цитирование
+Если вы использовали нашу библиотеку в исследовательских целях, пожалуйста, цитируйте нас со следующей ссылкой:
+```text
+  @misc{scrapling,
+    author = {Karim Shoair},
+    title = {Scrapling},
+    year = {2024},
+    url = {https://github.com/D4Vinci/Scrapling},
+    note = {An adaptive Web Scraping framework that handles everything from a single request to a full-scale crawl!}
+  }
+```
 
 ## Лицензия
 
@@ -321,14 +556,7 @@ docker pull ghcr.io/d4vinci/scrapling:latest
 ## Благодарности
 
 Этот проект включает код, адаптированный из:
-- Parsel (лицензия BSD) — Используется для подмодуля [translator](https://github.com/D4Vinci/Scrapling/blob/main/scrapling/core/translator.py)
-
-## Благодарности и ссылки
-
-- Блестящая работа [Daijro](https://github.com/daijro) над [BrowserForge](https://github.com/daijro/browserforge) и [Camoufox](https://github.com/daijro/camoufox)
-- Блестящая работа [Vinyzu](https://github.com/Vinyzu) над [Botright](https://github.com/Vinyzu/Botright) и [PatchRight](https://github.com/Kaliiiiiiiiii-Vinyzu/patchright)
-- [brotector](https://github.com/kaliiiiiiiiii/brotector) за техники обхода обнаружения браузера
-- [fakebrowser](https://github.com/kkoooqq/fakebrowser) и [BotBrowser](https://github.com/botswin/BotBrowser) за исследование отпечатков
+- Parsel (лицензия BSD) - Используется для подмодуля [translator](https://github.com/D4Vinci/Scrapling/blob/main/scrapling/core/translator.py)
 
 ---
 <div align="center"><small>Разработано и создано с ❤️ Карим Шоаир.</small></div><br>

@@ -1,4 +1,6 @@
 FROM python:3.12-slim-trixie
+
+LABEL io.modelcontextprotocol.server.name="io.github.D4Vinci/Scrapling"
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 # Set environment variables
@@ -23,9 +25,8 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=cache,target=/var/cache/apt \
     --mount=type=cache,target=/var/lib/apt \
     apt-get update && \
-    uv run playwright install-deps chromium firefox && \
+    uv run playwright install-deps chromium && \
     uv run playwright install chromium && \
-    uv run camoufox fetch --browserforge && \
     uv sync --all-extras --compile-bytecode && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*

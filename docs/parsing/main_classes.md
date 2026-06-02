@@ -1,9 +1,8 @@
-## Introduction
+# Parsing main classes
 
-> 💡 **Prerequisites:**
-> 
-> - You’ve completed or read the [Querying elements](../parsing/selection.md) page to understand how to find/extract elements from the [Selector](../parsing/main_classes.md#selector) object.
-> <br><br>
+!!! success "Prerequisites"
+
+    - You’ve completed or read the [Querying elements](../parsing/selection.md) page to understand how to find/extract elements from the [Selector](../parsing/main_classes.md#selector) object.
 
 After exploring the various ways to select elements with Scrapling and its related features, let's take a step back and examine the [Selector](#selector) class in general, as well as other objects, to gain a better understanding of the parsing engine.
 
@@ -41,7 +40,7 @@ Then you have the arguments for parsing adjustments or adjusting/manipulating th
 I have intended to ignore the arguments `huge_tree` and `root` to avoid making this page more complicated than needed.
 You may notice that I'm doing that a lot because it involves advanced features that you don't need to know to use the library. The development section will cover these missing parts if you are very invested.
 
-After that, for the main page and elements within, most properties are lazily loaded. This means they don't get initialized until you use them like the text content of a page/element, and this is one of the reasons for Scrapling speed :)
+After that, most properties on the main page and its elements are lazily loaded. This means they don't get initialized until you use them like the text content of a page/element, and this is one of the reasons for Scrapling speed :)
 
 ### Properties
 You have already seen much of this on the [overview](../overview.md) page, but don't worry if you didn't. We will review it more thoroughly using more advanced methods/usages. For clarity, the properties for traversal are separated below in the [traversal](#traversal) section.
@@ -111,7 +110,7 @@ But if you try to get the direct text content, it will be empty because it doesn
 ```
 The `get_all_text` method has the following optional arguments:
 
-1. **separator**: All strings collected will be concatenated using this separator. The default is '\n'
+1. **separator**: All strings collected will be concatenated using this separator. The default is '\n'.
 2. **strip**: If enabled, strings will be stripped before concatenation. Disabled by default.
 3. **ignore_tags**: A tuple of all tag names you want to ignore in the final results and ignore any elements nested within them. The default is `('script', 'style',)`.
 4. **valid_values**: If enabled, the method will only collect elements with real values, so all elements with empty text content or only whitespaces will be ignored. It's enabled by default
@@ -132,7 +131,7 @@ If you use it on the page directly, you will find that you are operating on the 
 >>> page.tag
 'html'
 ```
-Now, I think I hammered the (`page`/`element`) idea, so I won't return to it again.
+Now, I think I've hammered the (`page`/`element`) idea, so I won't return to it.
 
 Getting the attributes of the element
 ```python
@@ -141,14 +140,14 @@ Getting the attributes of the element
 ```
 Access a specific attribute with any of the following
 ```python
->>> article.attrib['class']
->>> article.attrib.get('class')
->>> article['class']  # new in v0.3
+article.attrib['class']
+article.attrib.get('class')
+article['class']  # new in v0.3
 ```
 Check if the attributes contain a specific attribute with any of the methods below
 ```python
->>> 'class' in article.attrib
->>> 'class' in article  # new in v0.3
+'class' in article.attrib
+'class' in article  # new in v0.3
 ```
 Get the HTML content of the element
 ```python
@@ -166,10 +165,10 @@ print(article.prettify())
     <div class="hidden stock">In stock: 5</div>
 </article>
 ```
-Use the `.body` property to get the raw content of the page
+Use the `.body` property to get the raw content of the page. Starting from v0.4, when used on a `Response` object from fetchers, `.body` always returns `bytes`.
 ```python
 >>> page.body
-'<html>\n  <head>\n    <title>Some page</title>\n  </head>\n  <body>\n    <div class="product-list">\n      <article class="product" data-id="1">\n        <h3>Product 1</h3>\n        <p class="description">This is product 1</p>\n        <span class="price">$10.99</span>\n        <div class="hidden stock">In stock: 5</div>\n      </article>\n\n      <article class="product" data-id="2">\n        <h3>Product 2</h3>\n        <p class="description">This is product 2</p>\n        <span class="price">$20.99</span>\n        <div class="hidden stock">In stock: 3</div>\n      </article>\n\n      <article class="product" data-id="3">\n        <h3>Product 3</h3>\n        <p class="description">This is product 3</p>\n        <span class="price">$15.99</span>\n        <div class="hidden stock">Out of stock</div>\n      </article>\n    </div>\n\n    <script id="page-data" type="application/json">\n      {\n        "lastUpdated": "2024-09-22T10:30:00Z",\n        "totalProducts": 3\n      }\n    </script>\n  </body>\n</html>'
+'<html>\n  <head>\n    <title>Some page</title>\n  </head>\n  ...'
 ```
 To get all the ancestors in the DOM tree of this element
 ```python
@@ -196,7 +195,7 @@ Same case with XPath
 ### Traversal
 Using the elements we found above, we will go over the properties/methods for moving on the page in detail.
 
-If you are unfamiliar with the DOM tree or the tree data structure in general, the following traversal part can be confusing. I recommend you look up these concepts online for a better understanding.
+If you are unfamiliar with the DOM tree or the tree data structure in general, the following traversal part can be confusing. I recommend you look up these concepts online to better understand them.
 
 If you are too lazy to search about it, here's a quick explanation to give you a good idea.<br/>
 In simple words, the `html` element is the root of the website's tree, as every page starts with an `html` element.<br/>
@@ -234,7 +233,7 @@ This element returns the same result as the `children` property because its chil
 
 Another example of using the element with the `product-list` class will clear the difference between the `children` property and the `below_elements` property
 ```python
->>> products_list = page.css_first('.product-list')
+>>> products_list = page.css('.product-list')[0]
 >>> products_list.children
 [<data='<article class="product" data-id="1"><h3...' parent='<div class="product-list"> <article clas...'>,
  <data='<article class="product" data-id="2"><h3...' parent='<div class="product-list"> <article clas...'>,
@@ -263,7 +262,7 @@ Get the next element of the current element
 The same logic applies to the `previous` property
 ```python
 >>> article.previous  # It's the first child, so it doesn't have a previous element
->>> second_article = page.css_first('.product[data-id="2"]')
+>>> second_article = page.css('.product[data-id="2"]')[0]
 >>> second_article.previous
 <data='<article class="product" data-id="1"><h3...' parent='<div class="product-list"> <article clas...'>
 ```
@@ -277,7 +276,7 @@ If your case needs more than the element's parent, you can iterate over the whol
 for ancestor in article.iterancestors():
     # do something with it...
 ```
-You can search for a specific ancestor of an element that satisfies a search function; all you need to do is to pass a function that takes a [Selector](#selector) object as an argument and return `True` if the condition satisfies or `False` otherwise, like below:
+You can search for a specific ancestor of an element that satisfies a search function; all you need to do is pass a function that takes a [Selector](#selector) object as an argument and return `True` if the condition satisfies or `False` otherwise, like below:
 ```python
 >>> article.find_ancestor(lambda ancestor: ancestor.has_class('product-list'))
 <data='<div class="product-list"> <article clas...' parent='<body> <div class="product-list"> <artic...'>
@@ -288,33 +287,63 @@ You can search for a specific ancestor of an element that satisfies a search fun
 ## Selectors
 The class `Selectors` is the "List" version of the [Selector](#selector) class. It inherits from the Python standard `List` type, so it shares all `List` properties and methods while adding more methods to make the operations you want to execute on the [Selector](#selector) instances within more straightforward.
 
-In the [Selector](#selector) class, all methods/properties that should return a group of elements return them as a [Selectors](#selectors) class instance. The only exceptions are when you use the CSS/XPath methods as follows:
+In the [Selector](#selector) class, all methods/properties that should return a group of elements return them as a [Selectors](#selectors) class instance.
 
-- If you selected a text node with the selector, then the return type will be [TextHandler](#texthandler)/[TextHandlers](#texthandlers). <br/>Examples:
-    ```python
-    >>> page.css('a::text')              # -> TextHandlers
-    >>> page.xpath('//a/text()')         # -> TextHandlers
-    >>> page.css_first('a::text')        # -> TextHandler
-    >>> page.xpath_first('//a/text()')   # -> TextHandler
-    >>> page.css('a::attr(href)')        # -> TextHandlers
-    >>> page.xpath('//a/@href')          # -> TextHandlers
-    >>> page.css_first('a::attr(href)')  # -> TextHandler
-    >>> page.xpath_first('//a/@href')    # -> TextHandler
-    ```
-- If you used a combined selector that returns mixed types, the result will be a Python standard `List`. <br/>Examples:
-  ```python
-  >>> page.css('.price_color')                               # -> Selectors
-  >>> page.css('.product_pod a::attr(href)')                # -> TextHandlers
-  >>> page.css('.price_color, .product_pod a::attr(href)')  # -> List
-  ```
+Starting with v0.4, all selection methods consistently return [Selector](#selector)/[Selectors](#selectors) objects, even for text nodes and attribute values. Text nodes (selected via `::text`, `/text()`, `::attr()`, `/@attr`) are wrapped in [Selector](#selector) objects. These text node selectors have `tag` set to `"#text"`, and their `text` property returns the text value. You can still access the text value directly, and all other properties return empty/default values gracefully.
 
-Let's see what [Selectors](#selectors) class adds to the table with that out of the way.
+```python
+page.css('a::text')              # -> Selectors (of text node Selectors)
+page.xpath('//a/text()')         # -> Selectors
+page.css('a::text').get()        # -> TextHandler (the first text value)
+page.css('a::text').getall()     # -> TextHandlers (all text values)
+page.css('a::attr(href)')        # -> Selectors
+page.xpath('//a/@href')          # -> Selectors
+page.css('.price_color')         # -> Selectors
+```
+
+### Data extraction methods
+Starting with v0.4, [Selector](#selector) and [Selectors](#selectors) both provide `get()`, `getall()`, and their aliases `extract_first` and `extract` (following Scrapy conventions). The old `get_all()` method has been removed.
+
+**On a [Selector](#selector) object:**
+
+- `get()` returns a `TextHandler`: for text node selectors, it returns the text value; for HTML element selectors, it returns the serialized outer HTML.
+- `getall()` returns a `TextHandlers` list containing the single serialized string.
+- `extract_first` is an alias for `get()`, and `extract` is an alias for `getall()`.
+
+```python
+>>> page.css('h3')[0].get()        # Outer HTML of the element
+'<h3>Product 1</h3>'
+
+>>> page.css('h3::text')[0].get()  # Text value of the text node
+'Product 1'
+```
+
+**On a [Selectors](#selectors) object:**
+
+- `get(default=None)` returns the serialized string of the **first** element, or `default` if the list is empty.
+- `getall()` serializes **all** elements and returns a `TextHandlers` list.
+- `extract_first` is an alias for `get()`, and `extract` is an alias for `getall()`.
+
+```python
+>>> page.css('.price::text').get()      # First price text
+'$10.99'
+
+>>> page.css('.price::text').getall()   # All price texts
+['$10.99', '$20.99', '$15.99']
+
+>>> page.css('.price::text').get('')    # With default value
+'$10.99'
+```
+
+These methods work seamlessly with all selection types (CSS, XPath, `find`, etc.) and are the recommended way to extract text and attribute values in a Scrapy-compatible style.
+
+Now, let's see what [Selectors](#selectors) class adds to the table with that out of the way.
 ### Properties
-Apart from the normal operations on Python lists, such as iteration and slicing, etc.
+Apart from the standard operations on Python lists, such as iteration and slicing.
 
 You can do the following:
 
-Execute CSS and XPath selectors directly on the [Selector](#selector) instances it has, while the arguments and the return types are the same as [Selector](#selector)'s `css` and `xpath` methods. This, of course, makes chaining methods very straightforward.
+Execute CSS and XPath selectors directly on the [Selector](#selector) instances it has, while the return types are the same as [Selector](#selector)'s `css` and `xpath` methods. The arguments are similar, except the `adaptive` argument is not available here. This, of course, makes chaining methods very straightforward.
 ```python
 >>> page.css('.product_pod a')
 [<data='<a href="catalogue/a-light-in-the-attic_...' parent='<div class="image_container"> <a href="c...'>,
@@ -334,7 +363,7 @@ Execute CSS and XPath selectors directly on the [Selector](#selector) instances 
  <data='<a href="catalogue/soumission_998/index....' parent='<h3><a href="catalogue/soumission_998/in...'>,
 ...]
 ```
-Run the `re` and `re_first` methods directly. They take the same arguments passed to the [Selector](#selector) class. I will still leave these methods to be explained in the [TextHandler](#texthandler) section below.
+Run the `re` and `re_first` methods directly. They take the same arguments passed to the [Selector](#selector) class. I will leave the explanation of these methods to the [TextHandler](#texthandler) section below.
 
 However, in this class, the `re_first` behaves differently as it runs `re` on each [Selector](#selector) within and returns the first one with a result. The `re` method will return a [TextHandlers](#texthandlers) object as normal, which combines all the [TextHandler](#texthandler) instances into one [TextHandlers](#texthandlers) instance.
 ```python
@@ -355,7 +384,7 @@ However, in this class, the `re_first` behaves differently as it runs `re` on ea
 ```
 With the `search` method, you can search quickly in the available [Selector](#selector) instances. The function you pass must accept a [Selector](#selector) instance as the first argument and return True/False. The method will return the first [Selector](#selector) instance that satisfies the function; otherwise, it will return `None`.
 ```python
-# Find all the products with price '53.23'
+# Find all the products with price '53.23'.
 >>> search_function = lambda p: float(p.css('.price_color').re_first(r'[\d\.]+')) == 54.23
 >>> page.css('.product_pod').search(search_function)
 <data='<article class="product_pod"><div class=...' parent='<li class="col-xs-6 col-sm-4 col-md-3 co...'>
@@ -370,11 +399,20 @@ You can use the `filter` method, too, which takes a function like the `search` m
  <data='<article class="product_pod"><div class=...' parent='<li class="col-xs-6 col-sm-4 col-md-3 co...'>,
 ...]
 ```
+You can safely access the first or last element without worrying about index errors:
+```python
+>>> page.css('.product').first   # First Selector or None
+<data='<article class="product" data-id="1"><h3...'>
+>>> page.css('.product').last    # Last Selector or None
+<data='<article class="product" data-id="3"><h3...'>
+>>> page.css('.nonexistent').first  # Returns None instead of raising IndexError
+```
+
 If you are too lazy like me and want to know the number of [Selector](#selector) instances in a [Selectors](#selectors) instance. You can do this:
 ```python
 page.css('.product_pod').length
 ```
-instead of this
+which is equivalent to
 ```python
 len(page.css('.product_pod'))
 ```
@@ -389,15 +427,15 @@ Of course, TextHandler provides extra methods and properties that standard Pytho
 ### Usage
 First, before discussing the added methods, you need to know that all operations on it, like slicing, accessing by index, etc., and methods like `split`, `replace`, `strip`, etc., all return a `TextHandler` again, so you can chain them as you want. If you find a method or property that returns a standard string instead of `TextHandler`, please open an issue, and we will override it as well.
 
-First, we start with the `re` and `re_first` methods. These are the same methods that exist in the other classes ([Selector](#selector), [Selectors](#selectors), and [TextHandlers](#texthandlers)), so they will accept the same arguments as well.
+First, we start with the `re` and `re_first` methods. These are the same methods that exist in the other classes ([Selector](#selector), [Selectors](#selectors), and [TextHandlers](#texthandlers)), so they accept the same arguments.
 
-- The `re` method takes a string/compiled regex pattern as the first argument. It searches the data for all strings matching the regex and returns them as a [TextHandlers](#texthandlers) instance. The `re_first` method takes the same arguments and behaves similarly, but as you probably figured out from the naming, it returns the first result only as a `TextHandler` instance.
+- The `re` method takes a string/compiled regex pattern as the first argument. It searches the data for all strings matching the regex and returns them as a [TextHandlers](#texthandlers) instance. The `re_first` method takes the same arguments and behaves similarly, but, as you probably figured out from the name, it returns only the first result as a `TextHandler` instance.
     
     Also, it takes other helpful arguments, which are:
     
     - **replace_entities**: This is enabled by default. It replaces character entity references with their corresponding characters.
-    - **clean_match**: It's disabled by default. This causes the method to ignore all whitespace and consecutive spaces while matching.
-    - **case_sensitive**: It's enabled by default. As the name implies, disabling it will cause the regex to ignore the case of letters while compiling.
+    - **clean_match**: It's disabled by default. This causes the method to ignore all whitespace, including consecutive spaces, while matching.
+    - **case_sensitive**: It's enabled by default. As the name implies, disabling it causes the regex to ignore letter case during compilation.
   
     You have seen these examples before; the return result is [TextHandlers](#texthandlers) because we used the `re` method.
     ```python
@@ -441,14 +479,14 @@ First, we start with the `re` and `re_first` methods. These are the same methods
 
 - You also have the `.json()` method, which tries to convert the content to a JSON object quickly if possible; otherwise, it throws an error
   ```python
-  >>> page.css_first('#page-data::text')
+  >>> page.css('#page-data::text').get()
     '\n      {\n        "lastUpdated": "2024-09-22T10:30:00Z",\n        "totalProducts": 3\n      }\n    '
-  >>> page.css_first('#page-data::text').json()
+  >>> page.css('#page-data::text').get().json()
     {'lastUpdated': '2024-09-22T10:30:00Z', 'totalProducts': 3}
   ```
   Hence, if you didn't specify a text node while selecting an element (like the text content or an attribute text content), the text content will be selected automatically, like this
   ```python
-  >>> page.css_first('#page-data').json()
+  >>> page.css('#page-data')[0].json()
   {'lastUpdated': '2024-09-22T10:30:00Z', 'totalProducts': 3}
   ```
   The [Selector](#selector) class adds one thing here, too; let's say this is the page we are working with:
@@ -469,16 +507,16 @@ First, we start with the `re` and `re_first` methods. These are the same methods
   The [Selector](#selector) class has the `get_all_text` method, which you should be aware of by now. This method returns a `TextHandler`, of course.<br/><br/>
   So, as you know here, if you did something like this
   ```python
-  >>> page.css_first('div::text').json()
+  >>> page.css('div::text').get().json()
   ```
-  You will get an error because the `div` tag doesn't have direct text content that can be serialized to JSON; it actually doesn't have direct text content at all.<br/><br/>
+  You will get an error because the `div` tag doesn't have any direct text content that can be serialized to JSON; it doesn't have any direct text content at all.<br/><br/>
   In this case, the `get_all_text` method comes to the rescue, so you can do something like that
   ```python
-  >>> page.css_first('div').get_all_text(ignore_tags=[]).json()
+  >>> page.css('div')[0].get_all_text(ignore_tags=[]).json()
     {'lastUpdated': '2024-09-22T10:30:00Z', 'totalProducts': 3}
   ```
   I used the `ignore_tags` argument here because the default value of it is `('script', 'style',)`, as you are aware.<br/><br/>
-  Another related behavior to be aware of occurs when using any of the fetchers, which we will explain later. If you have a JSON response like this example:
+  Another related behavior to be aware of occurs when using any fetcher, which we will explain later. If you have a JSON response like this example:
   ```python
   >>> page = Selector("""{"some_key": "some_value"}""")
   ```
@@ -493,14 +531,14 @@ First, we start with the `re` and `re_first` methods. These are the same methods
   {'some_key': 'some_value'}
   ```
   You might wonder how this happened, given that the `html` tag doesn't contain direct text.<br/>
-  Well, for cases like JSON responses, I made the [Selector](#selector) class maintain a raw copy of the content passed to it. This way, when you use the `.json()` method, it checks for that raw copy and then converts it to JSON. If the raw copy is not available like the case with the elements, it checks for the current element text content, or otherwise it used the `get_all_text` method directly.<br/><br/>This might sound hacky a bit but remember, Scrapling is currently optimized to work with HTML pages only so that's the best way till now to handle JSON responses currently without sacrificing speed. This will be changed in the upcoming versions.
+  Well, for cases like JSON responses, I made the [Selector](#selector) class keep a raw copy of the content it receives. This way, when you use the `.json()` method, it checks for that raw copy and then converts it to JSON. If the raw copy is unavailable, as with the elements, it checks the current element's text content; otherwise, it uses the `get_all_text` method directly.<br/>
 
 - Another handy method is `.clean()`, which will remove all white spaces and consecutive spaces for you and return a new `TextHandler` instance
 ```python
 >>> TextHandler('\n wonderful  idea, \reh?').clean()
 'wonderful idea, eh?'
 ```
-Also, you can pass `remove_entities` argument to make `clean` replace HTML entities with their corresponding characters.
+Also, you can pass the `remove_entities` argument to make `clean` replace HTML entities with their corresponding characters.
 
 - Another method that might be helpful in some cases is the `.sort()` method to sort the string for you, as you do with lists
 ```python
@@ -518,10 +556,10 @@ Other methods and properties will be added over time, but remember that this cla
 ## TextHandlers
 You probably guessed it: This class is similar to [Selectors](#selectors) and [Selector](#selector), but here it inherits the same logic and method as standard lists, with only `re` and `re_first` as new methods.
 
-The only difference is that the `re_first` method logic here does `re` on each [TextHandler](#texthandler) within and returns the first result it has or `None`. Nothing new needs to be explained here, but new methods will be added over time.
+The only difference is that the `re_first` method logic here runs `re` on each [TextHandler](#texthandler) and returns the first result, or `None`. Nothing new needs to be explained here, but new methods will be added over time.
 
 ## AttributesHandler
-This is a read-only version of Python's standard dictionary, or `dict`, that is used solely to store the attributes of each element or each [Selector](#selector) instance.
+This is a read-only version of Python's standard dictionary, or `dict`, used solely to store the attributes of each element/[Selector](#selector) instance.
 ```python
 >>> print(page.find('script').attrib)
 {'id': 'page-data', 'type': 'application/json'}
@@ -534,7 +572,7 @@ It currently adds two extra simple methods:
 
 - The `search_values` method
 
-    In standard dictionaries, you can do `dict.get("key_name")` to check if a key exists. However, if you want to search by values instead of keys, it will require some additional code lines. This method does that for you. It allows you to search the current attributes by values and returns a dictionary of each matching item.
+    In standard dictionaries, you can do `dict.get("key_name")` to check if a key exists. However, if you want to search by values rather than keys, you will need some additional code lines. This method does that for you. It allows you to search the current attributes by values and returns a dictionary of each matching item.
     
     A simple example would be
     ```python
@@ -555,13 +593,13 @@ It currently adds two extra simple methods:
      <data='<article class="product" data-id="2"><h3...' parent='<div class="product-list"> <article clas...'>,
      <data='<article class="product" data-id="3"><h3...' parent='<div class="product-list"> <article clas...'>]
     ```
-    All these elements have 'product' as a value for the attribute `class`.
+    All these elements have 'product' as the value for the `class` attribute.
     
     Hence, I used the `list` function here because `search_values` returns a generator, so it would be `True` for all elements.
 
 - The `json_string` property
 
-    This property converts current attributes to a JSON string if the attributes are JSON serializable; otherwise, it throws an error
+    This property converts current attributes to a JSON string if the attributes are JSON serializable; otherwise, it throws an error.
   
     ```python
     >>>page.find('script').attrib.json_string

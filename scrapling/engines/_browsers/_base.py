@@ -1,62 +1,86 @@
 from time import time
+from re import search as re_search
 from asyncio import sleep as asyncio_sleep, Lock
+from contextlib import contextmanager, asynccontextmanager
 
-from camoufox import DefaultAddons
 from playwright.sync_api._generated import Page
 from playwright.sync_api import (
     Frame,
     BrowserContext,
-    Playwright,
     Response as SyncPlaywrightResponse,
 )
 from playwright.async_api._generated import Page as AsyncPage
 from playwright.async_api import (
     Frame as AsyncFrame,
-    Playwright as AsyncPlaywright,
     Response as AsyncPlaywrightResponse,
     BrowserContext as AsyncBrowserContext,
 )
 from playwright._impl._errors import Error as PlaywrightError
-from camoufox.pkgman import installed_verstr as camoufox_version
-from camoufox.utils import launch_options as generate_launch_options
 
-from ._page import PageInfo, PagePool
 from scrapling.parser import Selector
-from scrapling.core._types import Any, cast, Dict, List, Optional, Callable, TYPE_CHECKING
-from scrapling.engines.toolbelt.fingerprints import get_os_name
-from ._validators import validate, PlaywrightConfig, CamoufoxConfig
-from ._config_tools import _compiled_stealth_scripts, _launch_kwargs, _context_kwargs
-from scrapling.engines.toolbelt.navigation import intercept_route, async_intercept_route
-
-__ff_version_str__ = camoufox_version().split(".", 1)[0]
+from scrapling.engines._browsers._page import PageInfo, PagePool
+from scrapling.engines._browsers._validators import validate, PlaywrightConfig, StealthConfig
+from scrapling.engines._browsers._config_tools import __default_chrome_useragent__, __default_useragent__
+from scrapling.engines.toolbelt.navigation import (
+    construct_proxy_dict,
+    create_intercept_handler,
+    create_async_intercept_handler,
+)
+from scrapling.core._types import (
+    Any,
+    Awaitable,
+    Dict,
+    List,
+    Set,
+    Optional,
+    Callable,
+    TYPE_CHECKING,
+    cast,
+    overload,
+    Tuple,
+    ProxyType,
+    Generator,
+    AsyncGenerator,
+)
+from scrapling.engines.constants import STEALTH_ARGS, HARMFUL_ARGS, DEFAULT_ARGS
 
 
 class SyncSession:
+    _config: "PlaywrightConfig | StealthConfig"
+    _context_options: Dict[str, Any]
+    if TYPE_CHECKING:
+        _build_context_with_proxy: Callable[..., Dict[str, Any]]
+
     def __init__(self, max_pages: int = 1):
         self.max_pages = max_pages
         self.page_pool = PagePool(max_pages)
         self._max_wait_for_page = 60
-        self.playwright: Playwright | Any = None
-        self.context: BrowserContext | Any = None
-        self._closed = False
+        self.playwright: Any = None
+        self.context: Any = None
+        self.browser: Any = None
+        self._is_alive = False
 
-    def start(self):
+    def start(self) -> None:
         pass
 
     def close(self):  # pragma: no cover
         """Close all resources"""
-        if self._closed:
+        if not self._is_alive:
             return
 
         if self.context:
             self.context.close()
             self.context = None
 
+        if self.browser:
+            self.browser.close()
+            self.browser = None
+
         if self.playwright:
             self.playwright.stop()
             self.playwright = None  # pyright: ignore
 
-        self._closed = True
+        self._is_alive = False
 
     def __enter__(self):
         self.start()
@@ -65,29 +89,36 @@ class SyncSession:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
 
+    def _initialize_context(self, config: PlaywrightConfig | StealthConfig, ctx: BrowserContext) -> BrowserContext:
+        """Initialize the browser context."""
+        if config.init_script:
+            ctx.add_init_script(path=config.init_script)
+
+        if config.cookies:  # pragma: no cover
+            ctx.add_cookies(config.cookies)
+
+        return ctx
+
     def _get_page(
         self,
         timeout: int | float,
         extra_headers: Optional[Dict[str, str]],
         disable_resources: bool,
+        blocked_domains: Optional[Set[str]] = None,
+        context: Optional[BrowserContext] = None,
     ) -> PageInfo[Page]:  # pragma: no cover
         """Get a new page to use"""
-
         # No need to check if a page is available or not in sync code because the code blocked before reaching here till the page closed, ofc.
-        assert self.context is not None, "Browser context not initialized"
-        page = self.context.new_page()
+        ctx = context if context is not None else self.context
+        assert ctx is not None, "Browser context not initialized"
+        page = ctx.new_page()
         page.set_default_navigation_timeout(timeout)
         page.set_default_timeout(timeout)
         if extra_headers:
             page.set_extra_http_headers(extra_headers)
 
-        if disable_resources:
-            page.route("**/*", intercept_route)
-
-        if getattr(self, "stealth", False):
-            for script in _compiled_stealth_scripts():
-                page.add_init_script(script=script)
-
+        if disable_resources or blocked_domains:
+            page.route("**/*", create_intercept_handler(disable_resources, blocked_domains))
         page_info = self.page_pool.add_page(page)
         page_info.mark_busy()
         return page_info
@@ -116,52 +147,111 @@ class SyncSession:
             self._wait_for_networkidle(page)
 
     @staticmethod
-    def _create_response_handler(page_info: PageInfo[Page], response_container: List) -> Callable:
-        """Create a response handler that captures the final navigation response.
+    def _create_response_handler(
+        page_info: PageInfo[Page],
+        response_container: List,
+        xhr_pattern: Optional[str] = None,
+        xhr_container: Optional[List] = None,
+    ) -> Callable[[SyncPlaywrightResponse], None]:
+        """Create a response handler that captures the final navigation response and optionally XHR/fetch responses.
 
         :param page_info: The PageInfo object containing the page
         :param response_container: A list to store the final response (mutable container)
+        :param xhr_pattern: Optional regex pattern to match XHR/fetch response URLs
+        :param xhr_container: Optional list to store captured XHR/fetch responses
         :return: A callback function for page.on("response", ...)
         """
 
-        def handle_response(finished_response: SyncPlaywrightResponse):
+        def handle_response(finished_response: SyncPlaywrightResponse) -> None:
             if (
                 finished_response.request.resource_type == "document"
                 and finished_response.request.is_navigation_request()
                 and finished_response.request.frame == page_info.page.main_frame
             ):
                 response_container[0] = finished_response
+            elif (
+                xhr_pattern
+                and xhr_container is not None
+                and finished_response.request.resource_type in ("xhr", "fetch")
+                and re_search(xhr_pattern, finished_response.url)
+            ):
+                xhr_container.append(finished_response)
 
         return handle_response
 
+    @contextmanager
+    def _page_generator(
+        self,
+        timeout: int | float,
+        extra_headers: Optional[Dict[str, str]],
+        disable_resources: bool,
+        proxy: Optional[ProxyType] = None,
+        blocked_domains: Optional[Set[str]] = None,
+    ) -> Generator["PageInfo[Page]", None, None]:
+        """Acquire a page - either from persistent context or fresh context with proxy."""
+        if proxy:
+            # Rotation mode: create fresh context with the provided proxy
+            if not self.browser:  # pragma: no cover
+                raise RuntimeError("Browser not initialized for proxy rotation mode")
+            context_options = self._build_context_with_proxy(proxy)
+            context: BrowserContext = self.browser.new_context(**context_options)
+
+            page_info = None
+            try:
+                context = self._initialize_context(self._config, context)
+                page_info = self._get_page(timeout, extra_headers, disable_resources, blocked_domains, context=context)
+                yield page_info
+            finally:
+                if page_info is not None and page_info in self.page_pool.pages:
+                    self.page_pool.pages.remove(page_info)
+                context.close()
+        else:
+            # Standard mode: use PagePool with persistent context
+            page_info = self._get_page(timeout, extra_headers, disable_resources, blocked_domains)
+            try:
+                yield page_info
+            finally:
+                page_info.page.close()
+                self.page_pool.pages.remove(page_info)
+
 
 class AsyncSession:
+    _config: "PlaywrightConfig | StealthConfig"
+    _context_options: Dict[str, Any]
+    if TYPE_CHECKING:
+        _build_context_with_proxy: Callable[..., Dict[str, Any]]
+
     def __init__(self, max_pages: int = 1):
         self.max_pages = max_pages
         self.page_pool = PagePool(max_pages)
         self._max_wait_for_page = 60
-        self.playwright: AsyncPlaywright | Any = None
-        self.context: AsyncBrowserContext | Any = None
-        self._closed = False
+        self.playwright: Any = None
+        self.context: Any = None
+        self.browser: Any = None
+        self._is_alive = False
         self._lock = Lock()
 
-    async def start(self):
+    async def start(self) -> None:
         pass
 
     async def close(self):
         """Close all resources"""
-        if self._closed:  # pragma: no cover
+        if not self._is_alive:  # pragma: no cover
             return
 
         if self.context:
             await self.context.close()
             self.context = None  # pyright: ignore
 
+        if self.browser:
+            await self.browser.close()
+            self.browser = None
+
         if self.playwright:
             await self.playwright.stop()
             self.playwright = None  # pyright: ignore
 
-        self._closed = True
+        self._is_alive = False
 
     async def __aenter__(self):
         await self.start()
@@ -170,19 +260,35 @@ class AsyncSession:
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self.close()
 
+    async def _initialize_context(
+        self, config: PlaywrightConfig | StealthConfig, ctx: AsyncBrowserContext
+    ) -> AsyncBrowserContext:
+        """Initialize the browser context."""
+        if config.init_script:  # pragma: no cover
+            await ctx.add_init_script(path=config.init_script)
+
+        if config.cookies:  # pragma: no cover
+            await ctx.add_cookies(config.cookies)
+
+        return ctx
+
     async def _get_page(
         self,
         timeout: int | float,
         extra_headers: Optional[Dict[str, str]],
         disable_resources: bool,
+        blocked_domains: Optional[Set[str]] = None,
+        context: Optional[AsyncBrowserContext] = None,
     ) -> PageInfo[AsyncPage]:  # pragma: no cover
         """Get a new page to use"""
+        ctx = context if context is not None else self.context
         if TYPE_CHECKING:
-            assert self.context is not None, "Browser context not initialized"
+            assert ctx is not None, "Browser context not initialized"
 
         async with self._lock:
             # If we're at max capacity after cleanup, wait for busy pages to finish
-            if self.page_pool.pages_count >= self.max_pages:
+            if context is None and self.page_pool.pages_count >= self.max_pages:
+                # Only applies when using persistent context
                 start_time = time()
                 while time() - start_time < self._max_wait_for_page:
                     await asyncio_sleep(0.05)
@@ -193,18 +299,14 @@ class AsyncSession:
                         f"No pages finished to clear place in the pool within the {self._max_wait_for_page}s timeout period"
                     )
 
-            page = await self.context.new_page()
+            page = await ctx.new_page()
             page.set_default_navigation_timeout(timeout)
             page.set_default_timeout(timeout)
             if extra_headers:
                 await page.set_extra_http_headers(extra_headers)
 
-            if disable_resources:
-                await page.route("**/*", async_intercept_route)
-
-            if getattr(self, "stealth", False):
-                for script in _compiled_stealth_scripts():
-                    await page.add_init_script(script=script)
+            if disable_resources or blocked_domains:
+                await page.route("**/*", create_async_intercept_handler(disable_resources, blocked_domains))
 
             return self.page_pool.add_page(page)
 
@@ -232,170 +334,212 @@ class AsyncSession:
             await self._wait_for_networkidle(page)
 
     @staticmethod
-    def _create_response_handler(page_info: PageInfo[AsyncPage], response_container: List) -> Callable:
-        """Create an async response handler that captures the final navigation response.
+    def _create_response_handler(
+        page_info: PageInfo[AsyncPage],
+        response_container: List,
+        xhr_pattern: Optional[str] = None,
+        xhr_container: Optional[List] = None,
+    ) -> Callable[[AsyncPlaywrightResponse], Awaitable[None]]:
+        """Create an async response handler that captures the final navigation response and optionally XHR/fetch responses.
 
         :param page_info: The PageInfo object containing the page
         :param response_container: A list to store the final response (mutable container)
+        :param xhr_pattern: Optional regex pattern to match XHR/fetch response URLs
+        :param xhr_container: Optional list to store captured XHR/fetch responses
         :return: A callback function for page.on("response", ...)
         """
 
-        async def handle_response(finished_response: AsyncPlaywrightResponse):
+        async def handle_response(finished_response: AsyncPlaywrightResponse) -> None:
             if (
                 finished_response.request.resource_type == "document"
                 and finished_response.request.is_navigation_request()
                 and finished_response.request.frame == page_info.page.main_frame
             ):
                 response_container[0] = finished_response
+            elif (
+                xhr_pattern
+                and xhr_container is not None
+                and finished_response.request.resource_type in ("xhr", "fetch")
+                and re_search(xhr_pattern, finished_response.url)
+            ):
+                xhr_container.append(finished_response)
 
         return handle_response
 
+    @asynccontextmanager
+    async def _page_generator(
+        self,
+        timeout: int | float,
+        extra_headers: Optional[Dict[str, str]],
+        disable_resources: bool,
+        proxy: Optional[ProxyType] = None,
+        blocked_domains: Optional[Set[str]] = None,
+    ) -> AsyncGenerator["PageInfo[AsyncPage]", None]:
+        """Acquire a page - either from persistent context or fresh context with proxy."""
+        if proxy:
+            # Rotation mode: create fresh context with the provided proxy
+            if not self.browser:  # pragma: no cover
+                raise RuntimeError("Browser not initialized for proxy rotation mode")
+            context_options = self._build_context_with_proxy(proxy)
+            context: AsyncBrowserContext = await self.browser.new_context(**context_options)
 
-class DynamicSessionMixin:
-    def __validate__(self, **params):
-        if "__max_pages" in params:
-            params["max_pages"] = params.pop("__max_pages")
-
-        config = validate(params, model=PlaywrightConfig)
-
-        self._max_pages = config.max_pages
-        self._headless = config.headless
-        self._hide_canvas = config.hide_canvas
-        self._disable_webgl = config.disable_webgl
-        self._real_chrome = config.real_chrome
-        self._stealth = config.stealth
-        self._google_search = config.google_search
-        self._wait = config.wait
-        self._proxy = config.proxy
-        self._locale = config.locale
-        self._extra_headers = config.extra_headers
-        self._useragent = config.useragent
-        self._timeout = config.timeout
-        self._cookies = config.cookies
-        self._disable_resources = config.disable_resources
-        self._cdp_url = config.cdp_url
-        self._network_idle = config.network_idle
-        self._load_dom = config.load_dom
-        self._wait_selector = config.wait_selector
-        self._init_script = config.init_script
-        self._wait_selector_state = config.wait_selector_state
-        self._extra_flags = config.extra_flags
-        self._selector_config = config.selector_config
-        self._timezone_id = config.timezone_id
-        self._additional_args = config.additional_args
-        self._page_action = config.page_action
-        self._user_data_dir = config.user_data_dir
-        self._headers_keys = {header.lower() for header in self._extra_headers.keys()} if self._extra_headers else set()
-        self.__initiate_browser_options__()
-
-    def __initiate_browser_options__(self):
-        if TYPE_CHECKING:
-            assert isinstance(self._proxy, tuple)
-
-        if not self._cdp_url:
-            # `launch_options` is used with persistent context
-            self.launch_options = dict(
-                _launch_kwargs(
-                    self._headless,
-                    self._proxy,
-                    self._locale,
-                    tuple(self._extra_headers.items()) if self._extra_headers else tuple(),
-                    self._useragent,
-                    self._real_chrome,
-                    self._stealth,
-                    self._hide_canvas,
-                    self._disable_webgl,
-                    self._timezone_id,
-                    tuple(self._extra_flags) if self._extra_flags else tuple(),
+            page_info = None
+            try:
+                context = await self._initialize_context(self._config, context)
+                page_info = await self._get_page(
+                    timeout, extra_headers, disable_resources, blocked_domains, context=context
                 )
-            )
-            self.launch_options["extra_http_headers"] = dict(self.launch_options["extra_http_headers"])
-            self.launch_options["proxy"] = dict(self.launch_options["proxy"]) or None
-            self.launch_options["user_data_dir"] = self._user_data_dir
-            self.launch_options.update(cast(Dict, self._additional_args))
-            self.context_options = dict()
+                yield page_info
+            finally:
+                if page_info is not None and page_info in self.page_pool.pages:
+                    self.page_pool.pages.remove(page_info)
+                await context.close()
         else:
-            # while `context_options` is left to be used when cdp mode is enabled
-            self.launch_options = dict()
-            self.context_options = dict(
-                _context_kwargs(
-                    self._proxy,
-                    self._locale,
-                    tuple(self._extra_headers.items()) if self._extra_headers else tuple(),
-                    self._useragent,
-                    self._stealth,
-                )
-            )
-            self.context_options["extra_http_headers"] = dict(self.context_options["extra_http_headers"])
-            self.context_options["proxy"] = dict(self.context_options["proxy"]) or None
-            self.context_options.update(cast(Dict, self._additional_args))
+            # Standard mode: use PagePool with persistent context
+            page_info = await self._get_page(timeout, extra_headers, disable_resources, blocked_domains)
+            try:
+                yield page_info
+            finally:
+                await page_info.page.close()
+                self.page_pool.pages.remove(page_info)
 
 
-class StealthySessionMixin:
-    def __validate__(self, **params):
+class BaseSessionMixin:
+    _config: "PlaywrightConfig | StealthConfig"
+
+    @overload
+    def __validate_routine__(self, params: Dict, model: type[StealthConfig]) -> StealthConfig: ...
+
+    @overload
+    def __validate_routine__(self, params: Dict, model: type[PlaywrightConfig]) -> PlaywrightConfig: ...
+
+    def __validate_routine__(
+        self, params: Dict, model: type[PlaywrightConfig] | type[StealthConfig]
+    ) -> PlaywrightConfig | StealthConfig:
+        # Dark color scheme bypasses the 'prefersLightColor' check in creepjs
+        self._context_options: Dict[str, Any] = {"color_scheme": "dark", "device_scale_factor": 2}
+        self._browser_options: Dict[str, Any] = {
+            "args": DEFAULT_ARGS,
+            "ignore_default_args": HARMFUL_ARGS,
+        }
         if "__max_pages" in params:
             params["max_pages"] = params.pop("__max_pages")
 
-        config: CamoufoxConfig = validate(params, model=CamoufoxConfig)
+        config = validate(params, model=model)
+        self._headers_keys = (
+            {header.lower() for header in config.extra_headers.keys()} if config.extra_headers else set()
+        )
 
-        self._max_pages = config.max_pages
-        self._headless = config.headless
-        self._block_images = config.block_images
-        self._disable_resources = config.disable_resources
-        self._block_webrtc = config.block_webrtc
-        self._allow_webgl = config.allow_webgl
-        self._network_idle = config.network_idle
-        self._load_dom = config.load_dom
-        self._humanize = config.humanize
-        self._solve_cloudflare = config.solve_cloudflare
-        self._wait = config.wait
-        self._timeout = config.timeout
-        self._page_action = config.page_action
-        self._wait_selector = config.wait_selector
-        self._init_script = config.init_script
-        self._addons = config.addons
-        self._wait_selector_state = config.wait_selector_state
-        self._cookies = config.cookies
-        self._google_search = config.google_search
-        self._extra_headers = config.extra_headers
-        self._proxy = config.proxy
-        self._os_randomize = config.os_randomize
-        self._disable_ads = config.disable_ads
-        self._geoip = config.geoip
-        self._selector_config = config.selector_config
-        self._additional_args = config.additional_args
-        self._user_data_dir = config.user_data_dir
-        self._headers_keys = {header.lower() for header in self._extra_headers.keys()} if self._extra_headers else set()
-        self.__initiate_browser_options__()
+        return config
 
-    def __initiate_browser_options__(self):
-        """Initiate browser options."""
-        self.launch_options: Dict[str, Any] = generate_launch_options(
-            **{
-                "geoip": self._geoip,
-                "proxy": dict(self._proxy) if self._proxy and isinstance(self._proxy, tuple) else self._proxy,
-                "addons": self._addons,
-                "exclude_addons": [] if self._disable_ads else [DefaultAddons.UBO],
-                "headless": self._headless,
-                "humanize": True if self._solve_cloudflare else self._humanize,
-                "i_know_what_im_doing": True,  # To turn warnings off with the user configurations
-                "allow_webgl": self._allow_webgl,
-                "block_webrtc": self._block_webrtc,
-                "block_images": self._block_images,  # Careful! it makes some websites don't finish loading at all like stackoverflow even in headful mode.
-                "os": None if self._os_randomize else get_os_name(),
-                "user_data_dir": self._user_data_dir,
-                "ff_version": __ff_version_str__,
-                "firefox_user_prefs": {
-                    # This is what enabling `enable_cache` does internally, so we do it from here instead
-                    "browser.sessionhistory.max_entries": 10,
-                    "browser.sessionhistory.max_total_viewers": -1,
-                    "browser.cache.memory.enable": True,
-                    "browser.cache.disk_cache_ssl": True,
-                    "browser.cache.disk.smart_size.enabled": True,
-                },
-                **cast(Dict, self._additional_args),
+    def __generate_options__(self, extra_flags: Tuple | None = None) -> None:
+        config: PlaywrightConfig | StealthConfig = self._config
+        self._context_options.update(
+            {
+                "proxy": config.proxy,
+                "locale": config.locale,
+                "timezone_id": config.timezone_id,
+                "extra_http_headers": config.extra_headers,
             }
         )
+        # The default useragent in the headful is always correct now in the current versions of Playwright
+        if config.useragent:
+            self._context_options["user_agent"] = config.useragent
+        elif not config.useragent and config.headless:
+            self._context_options["user_agent"] = (
+                __default_chrome_useragent__ if config.real_chrome else __default_useragent__
+            )
+
+        if not config.cdp_url:
+            flags = self._browser_options["args"]
+            if config.extra_flags or extra_flags:
+                flags = list(set(tuple(flags) + tuple(config.extra_flags or extra_flags or ())))
+
+            if config.dns_over_https:
+                doh_flag = "--dns-over-https-templates=https://cloudflare-dns.com/dns-query"
+                if isinstance(flags, list):
+                    flags.append(doh_flag)
+                else:
+                    flags = list(flags) + [doh_flag]
+
+            self._browser_options.update(
+                {
+                    "args": flags,
+                    "headless": config.headless,
+                    "channel": "chrome" if config.real_chrome else "chromium",
+                }
+            )
+            if config.executable_path:
+                self._browser_options["executable_path"] = config.executable_path
+
+            self._user_data_dir = config.user_data_dir
+        else:
+            self._browser_options = {}
+
+        if config.additional_args:
+            self._context_options.update(config.additional_args)
+
+    def _build_context_with_proxy(self, proxy: Optional[ProxyType] = None) -> Dict[str, Any]:
+        """
+        Build context options with a specific proxy for rotation mode.
+
+        :param proxy: Proxy URL string or Playwright-style proxy dict to use for this context.
+        :return: Dictionary of context options for browser.new_context().
+        """
+
+        context_options = self._context_options.copy()
+
+        # Override proxy if provided
+        if proxy:
+            context_options["proxy"] = construct_proxy_dict(proxy)
+
+        return context_options
+
+
+class DynamicSessionMixin(BaseSessionMixin):
+    def __validate__(self, **params):
+        self._config = self.__validate_routine__(params, model=PlaywrightConfig)
+        self.__generate_options__()
+
+
+class StealthySessionMixin(BaseSessionMixin):
+    def __validate__(self, **params):
+        self._config = self.__validate_routine__(params, model=StealthConfig)
+        self._context_options.update(
+            {
+                "is_mobile": False,
+                "has_touch": False,
+                # I'm thinking about disabling it to rest from all Service Workers' headache, but let's keep it as it is for now
+                "service_workers": "allow",
+                "ignore_https_errors": True,
+                "screen": {"width": 1920, "height": 1080},
+                "viewport": {"width": 1920, "height": 1080},
+                "permissions": ["geolocation", "notifications"],
+            }
+        )
+        self.__generate_stealth_options()
+
+    def __generate_stealth_options(self) -> None:
+        config = cast(StealthConfig, self._config)
+        flags: Tuple[str, ...] = tuple()
+        if not config.cdp_url:
+            flags = tuple(DEFAULT_ARGS) + tuple(STEALTH_ARGS)
+
+            if config.block_webrtc:
+                flags += (
+                    "--webrtc-ip-handling-policy=disable_non_proxied_udp",
+                    "--force-webrtc-ip-handling-policy",  # Ensures the policy is enforced
+                )
+            if not config.allow_webgl:
+                flags += (
+                    "--disable-webgl",
+                    "--disable-webgl-image-chromium",
+                    "--disable-webgl2",
+                )
+            if config.hide_canvas:
+                flags += ("--fingerprinting-canvas-image-data-noise",)
+
+        super(StealthySessionMixin, self).__generate_options__(flags)
 
     @staticmethod
     def _detect_cloudflare(page_content: str) -> str | None:

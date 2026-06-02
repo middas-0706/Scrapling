@@ -43,7 +43,7 @@ class TestAsyncDynamicSession:
             assert stats["total_pages"] <= 3
 
         # After exit, should be closed
-        assert session._closed is True
+        assert session._is_alive is False
 
         # Should raise RuntimeError when used after closing
         with pytest.raises(RuntimeError):
@@ -71,7 +71,6 @@ class TestAsyncDynamicSession:
         """Test AsyncDynamicSession with various options"""
         async with AsyncDynamicSession(
                 headless=False,
-                stealth=True,
                 disable_resources=True,
                 extra_headers={"X-Test": "value"}
         ) as session:

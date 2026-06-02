@@ -147,7 +147,7 @@ class TestTextMatching:
 class TestSimilarElements:
     def test_finding_similar_products(self, page):
         """Test finding similar product elements"""
-        first_product = page.css_first(".product")
+        first_product = page.css(".product").first
         similar_products = first_product.find_similar()
         assert len(similar_products) == 2
 
@@ -169,10 +169,6 @@ class TestErrorHandling:
         # No arguments
         with pytest.raises(ValueError):
             _ = Selector(adaptive=False)
-
-        # Invalid argument types
-        with pytest.raises(TypeError):
-            _ = Selector(root="ayo", adaptive=False)
 
         with pytest.raises(TypeError):
             _ = Selector(content=1, adaptive=False)
@@ -255,7 +251,7 @@ class TestElementNavigation:
 class TestJSONAndAttributes:
     def test_json_conversion(self, page):
         """Test converting content to JSON"""
-        script_content = page.css("#page-data::text")[0]
+        script_content = page.css("#page-data::text")[0].get()
         assert issubclass(type(script_content.sort()), str)
         page_data = script_content.json()
         assert page_data["totalProducts"] == 3
@@ -282,7 +278,7 @@ class TestJSONAndAttributes:
         assert list(key_value[0].keys()) == ["data-id"]
 
         # JSON attribute conversion
-        attr_json = page.css_first("#products").attrib["schema"].json()
+        attr_json = page.css("#products").first.attrib["schema"].json()
         assert attr_json == {"jsonable": "data"}
         assert isinstance(page.css("#products")[0].attrib.json_string, bytes)
 
@@ -323,6 +319,50 @@ def test_selectors_generation(page):
             _traverse(branch)
 
     _traverse(page)
+
+
+def test_full_path_selector_no_duplicate_ids():
+    """Test that full path selectors don't duplicate id segments (regression test)"""
+    html = '<html><body><div id="main"><p id="target">Hello</p></div></body></html>'
+    page = Selector(html)
+    target = page.css("#target").first
+
+    # CSS full path should not duplicate id selectors
+    css_full = target.generate_full_css_selector
+    assert css_full.count("#target") == 1, f"Duplicate #target in CSS full path: {css_full}"
+    assert css_full.count("#main") == 1, f"Duplicate #main in CSS full path: {css_full}"
+
+    # XPath full path should not duplicate id selectors
+    xpath_full = target.generate_full_xpath_selector
+    assert xpath_full.count("@id='target'") == 1, f"Duplicate @id='target' in XPath full path: {xpath_full}"
+    assert xpath_full.count("@id='main'") == 1, f"Duplicate @id='main' in XPath full path: {xpath_full}"
+
+    # The generated CSS selector should actually select the correct element
+    result = page.css(css_full)
+    assert len(result) == 1
+    assert result.first.text == "Hello"
+
+    # The generated XPath selector should also select the correct element
+    result = page.xpath(xpath_full)
+    assert len(result) == 1, f"XPath '{xpath_full}' selected {len(result)} elements, expected 1"
+    assert result.first.text == "Hello"
+
+
+def test_full_path_selector_mixed_id_and_no_id():
+    """Test full path selectors with a mix of elements with and without ids"""
+    html = '<html><body><div id="wrapper"><section><p>Text</p></section></div></body></html>'
+    page = Selector(html)
+    target = page.css("p").first
+
+    css_full = target.generate_full_css_selector
+    # p has no id, so it should appear as a tag name; div has id
+    assert "#wrapper" in css_full
+    assert css_full.count("#wrapper") == 1
+
+    # Verify the selector works
+    result = page.css(css_full)
+    assert len(result) == 1
+    assert result.first.text == "Text"
 
 
 # Miscellaneous Tests

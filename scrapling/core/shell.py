@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 from sys import stderr
+from copy import deepcopy
 from functools import wraps
-from re import sub as re_sub
+from re import sub as re_sub, compile as re_compile
 from collections import namedtuple
 from shlex import split as shlex_split
 from inspect import signature, Parameter
@@ -20,6 +21,7 @@ from logging import (
     getLevelName,
 )
 
+from lxml.etree import XPath
 from orjson import loads as json_loads, JSONDecodeError
 
 from ._shell_signatures import Signatures_map
@@ -30,6 +32,7 @@ from scrapling.core.custom_types import TextHandler
 from scrapling.engines.toolbelt.custom import Response
 from scrapling.core.utils._shell import _ParseHeaders, _CookieParser
 from scrapling.core._types import (
+    Callable,
     Dict,
     Any,
     cast,
@@ -65,6 +68,19 @@ Request = namedtuple(
     ],
 )
 
+# Precompiled for the prompt injection sanitizer
+_HIDDEN_XPATH = XPath(
+    './/*[contains(@style,"display:none") or contains(@style,"display: none")'
+    ' or contains(@style,"visibility:hidden") or contains(@style,"visibility: hidden")'
+    ' or contains(@style,"opacity:0") or contains(@style,"opacity: 0")'
+    ' or contains(@style,"font-size:0") or contains(@style,"font-size: 0")'
+    ' or contains(@style,"height:0") or contains(@style,"height: 0")'
+    ' or contains(@style,"width:0") or contains(@style,"width: 0")]'
+    " | .//*[@aria-hidden='true']"
+    " | .//template"
+)
+_ZWC_PATTERN = re_compile(r"[\u200b\u200c\u200d\ufeff\u2060\u180e]")
+
 
 # Suppress exit on error to handle parsing errors gracefully
 class NoExitArgumentParser(ArgumentParser):  # pragma: no cover
@@ -82,7 +98,7 @@ class NoExitArgumentParser(ArgumentParser):  # pragma: no cover
 class CurlParser:
     """Builds the argument parser for relevant curl flags from DevTools."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         from scrapling.fetchers import Fetcher as __Fetcher
 
         self.__fetcher = __Fetcher
@@ -278,7 +294,7 @@ class CurlParser:
             headers=headers,
             cookies=cookies,
             proxy=proxies,
-            follow_redirects=True,  # Scrapling default is True
+            follow_redirects="safe",  # Follows redirects but rejects those to internal/private IPs
         )
 
     def convert2fetcher(self, curl_command: Request | str) -> Optional[Response]:
@@ -467,19 +483,21 @@ Type 'exit' or press Ctrl+D to exit.
 
         return result
 
-    def create_wrapper(self, func, get_signature=True, signature_name=None):
+    def create_wrapper(
+        self, func: Callable, get_signature: bool = True, signature_name: Optional[str] = None
+    ) -> Callable:
         """Create a wrapper that preserves function signature but updates page"""
 
         @wraps(func)
-        def wrapper(*args, **kwargs):
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
             result = func(*args, **kwargs)
             return self.update_page(result)
 
         if get_signature:
             # Explicitly preserve and unpack signature for IPython introspection and autocompletion
-            wrapper.__signature__ = _unpack_signature(func, signature_name)  # pyright: ignore
+            setattr(wrapper, "__signature__", _unpack_signature(func, signature_name))
         else:
-            wrapper.__signature__ = signature(func)  # pyright: ignore
+            setattr(wrapper, "__signature__", signature(func))
 
         return wrapper
 
@@ -569,6 +587,31 @@ class Convertor:
         return markdownify(body)
 
     @classmethod
+    def _strip_noise_tags(cls, page: Selector) -> Selector:
+        """Return a copy of the Selector with noise tags removed."""
+        clean_root = deepcopy(page._root)
+        for element in clean_root.iter(*{"script", "style", "noscript", "svg"}):
+            element.drop_tree()
+        return Selector(root=clean_root, url=page.url)
+
+    @classmethod
+    def _sanitize_for_ai(cls, page: Selector) -> Selector:
+        """Strip hidden content that could be used for prompt injection.
+
+        Removes CSS-hidden elements, aria-hidden elements, <template> tags,
+        HTML comments, and zero-width Unicode characters.
+        """
+        clean_root = deepcopy(page._root)
+        for element in cast(list, _HIDDEN_XPATH(clean_root)):
+            element.drop_tree()
+        for element in clean_root.iter():
+            if element.text:
+                element.text = _ZWC_PATTERN.sub("", element.text)
+            if element.tail:
+                element.tail = _ZWC_PATTERN.sub("", element.tail)
+        return Selector(root=clean_root, url=page.url, keep_comments=False)
+
+    @classmethod
     def _extract_content(
         cls,
         page: Selector,
@@ -583,7 +626,9 @@ class Convertor:
             raise ValueError(f"Unknown extraction type: {extraction_type}")
         else:
             if main_content_only:
-                page = cast(Selector, page.css_first("body")) or page
+                page = cast(Selector, page.css("body").first) or page
+                page = cls._strip_noise_tags(page)
+                page = cls._sanitize_for_ai(page)
 
             pages = [page] if not css_selector else cast(Selectors, page.css(css_selector))
             for page in pages:
@@ -593,7 +638,9 @@ class Convertor:
                     case "html":
                         yield page.html_content
                     case "text":
-                        txt_content = page.get_all_text(strip=True)
+                        txt_content = page.get_all_text(
+                            strip=True, ignore_tags=("script", "style", "noscript", "svg", "iframe")
+                        )
                         for s in (
                             "\n",
                             "\r",
@@ -601,12 +648,14 @@ class Convertor:
                             " ",
                         ):
                             # Remove consecutive white-spaces
-                            txt_content = re_sub(f"[{s}]+", s, txt_content)
+                            txt_content = TextHandler(re_sub(f"[{s}]+", s, txt_content))
                         yield txt_content
             yield ""
 
     @classmethod
-    def write_content_to_file(cls, page: Selector, filename: str, css_selector: Optional[str] = None) -> None:
+    def write_content_to_file(
+        cls, page: Selector, filename: str, css_selector: Optional[str] = None, main_content_only: bool = False
+    ) -> None:
         """Write a Selector's content to a file"""
         if not page or not isinstance(page, Selector):  # pragma: no cover
             raise TypeError("Input must be of type `Selector`")
@@ -623,6 +672,7 @@ class Convertor:
                             page,
                             cls._extension_map[extension],
                             css_selector=css_selector,
+                            main_content_only=main_content_only,
                         )
                     )
                 )

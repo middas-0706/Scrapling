@@ -1,5 +1,5 @@
 # Disable loading these resources for speed
-DEFAULT_DISABLED_RESOURCES = {
+EXTRA_RESOURCES = {
     "font",
     "image",
     "media",
@@ -12,7 +12,7 @@ DEFAULT_DISABLED_RESOURCES = {
     "stylesheet",
 }
 
-HARMFUL_DEFAULT_ARGS = (
+HARMFUL_ARGS = (
     # This will be ignored to avoid detection more and possibly avoid the popup crashing bug abuse: https://issues.chromium.org/issues/340836884
     "--enable-automation",
     "--disable-popup-blocking",
@@ -21,7 +21,7 @@ HARMFUL_DEFAULT_ARGS = (
     "--disable-extensions",
 )
 
-DEFAULT_FLAGS = (
+DEFAULT_ARGS = (
     # Speed up chromium browsers by default
     "--no-pings",
     "--no-first-run",
@@ -30,15 +30,16 @@ DEFAULT_FLAGS = (
     "--no-service-autorun",
     "--homepage=about:blank",
     "--password-store=basic",
+    "--disable-hang-monitor",
     "--no-default-browser-check",
     "--disable-session-crashed-bubble",
     "--disable-search-engine-choice-screen",
 )
 
-DEFAULT_STEALTH_FLAGS = (
+STEALTH_ARGS = (
     # Explanation: https://peter.sh/experiments/chromium-command-line-switches/
     # Generally this will make the browser faster and less detectable
-    "--incognito",
+    # "--incognito",
     "--test-type",
     "--lang=en-US",
     "--mute-audio",
@@ -56,7 +57,6 @@ DEFAULT_STEALTH_FLAGS = (
     "--ignore-gpu-blocklist",
     "--enable-tcp-fast-open",
     "--enable-web-bluetooth",
-    "--disable-hang-monitor",
     "--disable-cloud-import",
     "--disable-print-preview",
     "--disable-dev-shm-usage",
@@ -74,7 +74,6 @@ DEFAULT_STEALTH_FLAGS = (
     "--disable-domain-reliability",
     "--disable-threaded-animation",
     "--disable-threaded-scrolling",
-    # '--disable-reading-from-canvas', # For Firefox
     "--enable-simple-cache-backend",
     "--disable-background-networking",
     "--enable-surface-synchronization",
@@ -84,20 +83,17 @@ DEFAULT_STEALTH_FLAGS = (
     "--prerender-from-omnibox=disabled",
     "--safebrowsing-disable-auto-update",
     "--disable-offer-upload-credit-cards",
-    "--disable-features=site-per-process",
     "--disable-background-timer-throttling",
     "--disable-new-content-rendering-timeout",
     "--run-all-compositor-stages-before-draw",
     "--disable-client-side-phishing-detection",
     "--disable-backgrounding-occluded-windows",
     "--disable-layer-tree-host-memory-pressure",
-    "--autoplay-policy=no-user-gesture-required",
+    "--autoplay-policy=user-gesture-required",
     "--disable-offer-store-unmasked-wallet-cards",
     "--disable-blink-features=AutomationControlled",
-    "--webrtc-ip-handling-policy=disable_non_proxied_udp",
     "--disable-component-extensions-with-background-pages",
-    "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
     "--enable-features=NetworkService,NetworkServiceInProcess,TrustTokens,TrustTokensAlwaysAllowIssuance",
     "--blink-settings=primaryHoverType=2,availableHoverTypes=2,primaryPointerType=4,availablePointerTypes=4",
-    "--disable-features=AudioServiceOutOfProcess,IsolateOrigins,site-per-process,TranslateUI,BlinkGenPropertyTrees",
+    "--disable-features=AudioServiceOutOfProcess,TranslateUI,BlinkGenPropertyTrees",
 )

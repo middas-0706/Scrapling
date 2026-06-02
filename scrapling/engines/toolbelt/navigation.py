@@ -2,8 +2,6 @@
 Functions related to files and URLs
 """
 
-from pathlib import Path
-from functools import lru_cache
 from urllib.parse import urlparse
 
 from playwright.async_api import Route as async_Route
@@ -11,10 +9,8 @@ from msgspec import Struct, structs, convert, ValidationError
 from playwright.sync_api import Route
 
 from scrapling.core.utils import log
-from scrapling.core._types import Dict, Tuple, overload, Literal
-from scrapling.engines.constants import DEFAULT_DISABLED_RESOURCES
-
-__BYPASSES_DIR__ = Path(__file__).parent / "bypasses"
+from scrapling.core._types import Dict, Set, Tuple, Optional, Callable
+from scrapling.engines.constants import EXTRA_RESOURCES
 
 
 class ProxyDict(Struct):
@@ -23,46 +19,86 @@ class ProxyDict(Struct):
     password: str = ""
 
 
-def intercept_route(route: Route):
-    """This is just a route handler, but it drops requests that its type falls in `DEFAULT_DISABLED_RESOURCES`
+def _is_domain_blocked(hostname: str, domains: frozenset) -> bool:
+    """Check if a hostname matches any blocked domain using O(1) frozenset lookups.
 
-    :param route: PlayWright `Route` object of the current page
-    :return: PlayWright `Route` object
+    Walks up the hostname's suffix chain: for "tracker.ads.doubleclick.net",
+    checks "tracker.ads.doubleclick.net", "ads.doubleclick.net", "doubleclick.net".
+
+    :param hostname: The hostname to check.
+    :param domains: A frozenset of blocked domain names.
+    :return: True if the hostname or any of its parent domains is in the blocked set.
     """
-    if route.request.resource_type in DEFAULT_DISABLED_RESOURCES:
-        log.debug(f'Blocking background resource "{route.request.url}" of type "{route.request.resource_type}"')
-        route.abort()
-    else:
-        route.continue_()
+    if hostname in domains:
+        return True
+    idx = hostname.find(".")
+    while idx != -1:
+        suffix = hostname[idx + 1 :]
+        if "." in suffix and suffix in domains:
+            return True
+        idx = hostname.find(".", idx + 1)
+    return False
 
 
-async def async_intercept_route(route: async_Route):
-    """This is just a route handler, but it drops requests that its type falls in `DEFAULT_DISABLED_RESOURCES`
+def create_intercept_handler(disable_resources: bool, blocked_domains: Optional[Set[str]] = None) -> Callable:
+    """Create a route handler that blocks both resource types and specific domains.
 
-    :param route: PlayWright `Route` object of the current page
-    :return: PlayWright `Route` object
+    :param disable_resources: Whether to block default resource types.
+    :param blocked_domains: Set of domain names to block requests to.
+    :return: A sync route handler function.
     """
-    if route.request.resource_type in DEFAULT_DISABLED_RESOURCES:
-        log.debug(f'Blocking background resource "{route.request.url}" of type "{route.request.resource_type}"')
-        await route.abort()
-    else:
-        await route.continue_()
+    disabled_resources = EXTRA_RESOURCES if disable_resources else set()
+    domains = frozenset(blocked_domains) if blocked_domains else frozenset()
+
+    def handler(route: Route):
+        if route.request.resource_type in disabled_resources:
+            log.debug(f'Blocking background resource "{route.request.url}" of type "{route.request.resource_type}"')
+            route.abort()
+        elif domains:
+            hostname = urlparse(route.request.url).hostname or ""
+            if _is_domain_blocked(hostname, domains):
+                log.debug(f'Blocking request to blocked domain "{hostname}" ({route.request.url})')
+                route.abort()
+            else:
+                route.continue_()
+        else:
+            route.continue_()
+
+    return handler
 
 
-@overload
-def construct_proxy_dict(proxy_string: str | Dict[str, str] | Tuple, as_tuple: Literal[True]) -> Tuple: ...
+def create_async_intercept_handler(disable_resources: bool, blocked_domains: Optional[Set[str]] = None) -> Callable:
+    """Create an async route handler that blocks both resource types and specific domains.
+
+    :param disable_resources: Whether to block default resource types.
+    :param blocked_domains: Set of domain names to block requests to.
+    :return: An async route handler function.
+    """
+    disabled_resources = EXTRA_RESOURCES if disable_resources else set()
+    domains = frozenset(blocked_domains) if blocked_domains else frozenset()
+
+    async def handler(route: async_Route):
+        if route.request.resource_type in disabled_resources:
+            log.debug(f'Blocking background resource "{route.request.url}" of type "{route.request.resource_type}"')
+            await route.abort()
+        elif domains:
+            hostname = urlparse(route.request.url).hostname or ""
+            if _is_domain_blocked(hostname, domains):
+                log.debug(f'Blocking request to blocked domain "{hostname}" ({route.request.url})')
+                await route.abort()
+            else:
+                await route.continue_()
+        else:
+            await route.continue_()
+
+    return handler
 
 
-@overload
-def construct_proxy_dict(proxy_string: str | Dict[str, str] | Tuple, as_tuple: Literal[False] = False) -> Dict: ...
-
-
-def construct_proxy_dict(proxy_string: str | Dict[str, str] | Tuple, as_tuple: bool = False) -> Dict | Tuple:
+def construct_proxy_dict(proxy_string: str | Dict[str, str] | Tuple) -> Dict:
     """Validate a proxy and return it in the acceptable format for Playwright
     Reference: https://playwright.dev/python/docs/network#http-proxy
 
     :param proxy_string: A string or a dictionary representation of the proxy.
-    :param as_tuple: Return the proxy dictionary as a tuple to be cachable
     :return:
     """
     if isinstance(proxy_string, str):
@@ -78,7 +114,7 @@ def construct_proxy_dict(proxy_string: str | Dict[str, str] | Tuple, as_tuple: b
             }
             if proxy.port:
                 result["server"] += f":{proxy.port}"
-            return tuple(result.items()) if as_tuple else result
+            return result
         except ValueError:
             # Urllib will say that one of the parameters above can't be casted to the correct type like `int` for port etc...
             raise ValueError("The proxy argument's string is in invalid format!")
@@ -87,18 +123,8 @@ def construct_proxy_dict(proxy_string: str | Dict[str, str] | Tuple, as_tuple: b
         try:
             validated = convert(proxy_string, ProxyDict)
             result_dict = structs.asdict(validated)
-            return tuple(result_dict.items()) if as_tuple else result_dict
+            return result_dict
         except ValidationError as e:
             raise TypeError(f"Invalid proxy dictionary: {e}")
 
     raise TypeError(f"Invalid proxy string: {proxy_string}")
-
-
-@lru_cache(10, typed=True)
-def js_bypass_path(filename: str) -> str:
-    """Takes the base filename of a JS file inside the `bypasses` folder, then return the full path of it
-
-    :param filename: The base filename of the JS file.
-    :return: The full path of the JS file.
-    """
-    return str(__BYPASSES_DIR__ / filename)

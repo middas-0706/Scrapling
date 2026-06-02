@@ -1,16 +1,13 @@
 import pytest
-from pathlib import Path
 
 from scrapling.engines.toolbelt.custom import StatusText, Response
 from scrapling.engines.toolbelt.navigation import (
     construct_proxy_dict,
-    js_bypass_path
+    create_intercept_handler,
+    create_async_intercept_handler,
+    _is_domain_blocked,
 )
-from scrapling.engines.toolbelt.fingerprints import (
-    generate_convincing_referer,
-    get_os_name,
-    generate_headers
-)
+from scrapling.engines.toolbelt.fingerprints import get_os_name, generate_headers
 
 
 @pytest.fixture
@@ -149,31 +146,19 @@ class TestConstructProxyDict:
         """Test a basic proxy string"""
         result = construct_proxy_dict("http://proxy.example.com:8080")
 
-        expected = {
-            "server": "http://proxy.example.com:8080",
-            "username": "",
-            "password": ""
-        }
+        expected = {"server": "http://proxy.example.com:8080", "username": "", "password": ""}
         assert result == expected
 
     def test_proxy_string_with_auth(self):
         """Test proxy string with authentication"""
         result = construct_proxy_dict("http://user:pass@proxy.example.com:8080")
 
-        expected = {
-            "server": "http://proxy.example.com:8080",
-            "username": "user",
-            "password": "pass"
-        }
+        expected = {"server": "http://proxy.example.com:8080", "username": "user", "password": "pass"}
         assert result == expected
 
     def test_proxy_dict_input(self):
         """Test proxy dictionary input"""
-        input_dict = {
-            "server": "http://proxy.example.com:8080",
-            "username": "user",
-            "password": "pass"
-        }
+        input_dict = {"server": "http://proxy.example.com:8080", "username": "user", "password": "pass"}
         result = construct_proxy_dict(input_dict)
 
         assert result == input_dict
@@ -183,20 +168,8 @@ class TestConstructProxyDict:
         input_dict = {"server": "http://proxy.example.com:8080"}
         result = construct_proxy_dict(input_dict)
 
-        expected = {
-            "server": "http://proxy.example.com:8080",
-            "username": "",
-            "password": ""
-        }
+        expected = {"server": "http://proxy.example.com:8080", "username": "", "password": ""}
         assert result == expected
-
-    def test_proxy_as_tuple(self):
-        """Test returning proxy as a tuple"""
-        result = construct_proxy_dict("http://proxy.example.com:8080", as_tuple=True)
-
-        assert isinstance(result, tuple)
-        result_dict = dict(result)
-        assert result_dict["server"] == "http://proxy.example.com:8080"
 
     def test_invalid_proxy_string(self):
         """Test invalid proxy string"""
@@ -209,43 +182,8 @@ class TestConstructProxyDict:
             construct_proxy_dict({"invalid": "structure"})
 
 
-class TestJsBypassPath:
-    """Test JavaScript bypass path utility"""
-
-    def test_js_bypass_path(self):
-        """Test getting JavaScript bypass file path"""
-        result = js_bypass_path("webdriver_fully.js")
-
-        assert isinstance(result, str)
-        assert result.endswith("webdriver_fully.js")
-        assert Path(result).exists()
-
-    def test_js_bypass_path_caching(self):
-        """Test that js_bypass_path is cached"""
-        result1 = js_bypass_path("webdriver_fully.js")
-        result2 = js_bypass_path("webdriver_fully.js")
-
-        assert result1 == result2
-
-
 class TestFingerprintFunctions:
     """Test fingerprint generation functions"""
-
-    def test_generate_convincing_referer(self):
-        """Test referer generation"""
-        url = "https://sub.example.com/page.html"
-        result = generate_convincing_referer(url)
-
-        assert result.startswith("https://www.google.com/search?q=")
-        assert "example" in result
-
-    def test_generate_convincing_referer_caching(self):
-        """Test referer generation caching"""
-        url = "https://example.com"
-        result1 = generate_convincing_referer(url)
-        result2 = generate_convincing_referer(url)
-
-        assert result1 == result2
 
     def test_get_os_name(self):
         """Test OS name detection"""
@@ -284,7 +222,7 @@ class TestResponse:
             cookies={"session": "abc123"},
             headers={"Content-Type": "text/html"},
             request_headers={"User-Agent": "Test"},
-            encoding="utf-8"
+            encoding="utf-8",
         )
 
         assert response.url == "https://example.com"
@@ -294,7 +232,7 @@ class TestResponse:
 
     def test_response_with_bytes_content(self):
         """Test Response with 'bytes' content"""
-        content_bytes = "<html><body>Test</body></html>".encode('utf-8')
+        content_bytes = "<html><body>Test</body></html>".encode("utf-8")
 
         response = Response(
             url="https://example.com",
@@ -303,8 +241,245 @@ class TestResponse:
             reason="OK",
             cookies={},
             headers={},
-            request_headers={}
+            request_headers={},
         )
 
         # Should handle 'bytes' content properly
         assert response.status == 200
+
+
+class _MockRequest:
+    """Minimal mock for Playwright's Request object."""
+
+    def __init__(self, url: str, resource_type: str = "document"):
+        self.url = url
+        self.resource_type = resource_type
+
+
+class _MockRoute:
+    """Minimal mock for Playwright's sync Route object."""
+
+    def __init__(self, url: str, resource_type: str = "document"):
+        self.request = _MockRequest(url, resource_type)
+        self.aborted = False
+        self.continued = False
+
+    def abort(self):
+        self.aborted = True
+
+    def continue_(self):
+        self.continued = True
+
+
+class _AsyncMockRoute:
+    """Minimal mock for Playwright's async Route object."""
+
+    def __init__(self, url: str, resource_type: str = "document"):
+        self.request = _MockRequest(url, resource_type)
+        self.aborted = False
+        self.continued = False
+
+    async def abort(self):
+        self.aborted = True
+
+    async def continue_(self):
+        self.continued = True
+
+
+class TestCreateInterceptHandler:
+    """Test the unified sync route handler factory."""
+
+    def test_blocks_disabled_resource_types(self):
+        handler = create_intercept_handler(disable_resources=True)
+        route = _MockRoute("https://example.com/image.png", resource_type="image")
+        handler(route)
+        assert route.aborted
+
+    def test_continues_allowed_resource_types(self):
+        handler = create_intercept_handler(disable_resources=True)
+        route = _MockRoute("https://example.com/page", resource_type="document")
+        handler(route)
+        assert route.continued
+
+    def test_blocks_exact_domain(self):
+        handler = create_intercept_handler(disable_resources=False, blocked_domains={"ads.example.com"})
+        route = _MockRoute("https://ads.example.com/tracker.js")
+        handler(route)
+        assert route.aborted
+
+    def test_blocks_subdomain(self):
+        handler = create_intercept_handler(disable_resources=False, blocked_domains={"example.com"})
+        route = _MockRoute("https://sub.example.com/page")
+        handler(route)
+        assert route.aborted
+
+    def test_continues_non_blocked_domain(self):
+        handler = create_intercept_handler(disable_resources=False, blocked_domains={"ads.example.com"})
+        route = _MockRoute("https://safe.example.com/page")
+        handler(route)
+        assert route.continued
+
+    def test_resource_blocking_takes_priority_over_domain(self):
+        """When both are active, resource type check comes first."""
+        handler = create_intercept_handler(disable_resources=True, blocked_domains={"example.com"})
+        route = _MockRoute("https://example.com/style.css", resource_type="stylesheet")
+        handler(route)
+        assert route.aborted
+
+    def test_domain_blocking_with_resources_disabled(self):
+        """Non-blocked resource type from a blocked domain should still be aborted."""
+        handler = create_intercept_handler(disable_resources=True, blocked_domains={"tracker.io"})
+        route = _MockRoute("https://tracker.io/api", resource_type="document")
+        handler(route)
+        assert route.aborted
+
+    def test_no_blocking_continues(self):
+        handler = create_intercept_handler(disable_resources=False)
+        route = _MockRoute("https://example.com/page")
+        handler(route)
+        assert route.continued
+
+    def test_does_not_block_partial_domain_match(self):
+        """'example.com' should not block 'notexample.com'."""
+        handler = create_intercept_handler(disable_resources=False, blocked_domains={"example.com"})
+        route = _MockRoute("https://notexample.com/page")
+        handler(route)
+        assert route.continued
+
+    def test_multiple_blocked_domains(self):
+        handler = create_intercept_handler(disable_resources=False, blocked_domains={"ads.com", "tracker.io"})
+        route_ads = _MockRoute("https://ads.com/banner")
+        route_tracker = _MockRoute("https://cdn.tracker.io/script.js")
+        route_safe = _MockRoute("https://example.com/page")
+        handler(route_ads)
+        handler(route_tracker)
+        handler(route_safe)
+        assert route_ads.aborted
+        assert route_tracker.aborted
+        assert route_safe.continued
+
+
+class TestCreateAsyncInterceptHandler:
+    """Test the unified async route handler factory."""
+
+    @pytest.mark.asyncio
+    async def test_blocks_disabled_resource_types(self):
+        handler = create_async_intercept_handler(disable_resources=True)
+        route = _AsyncMockRoute("https://example.com/font.woff", resource_type="font")
+        await handler(route)
+        assert route.aborted
+
+    @pytest.mark.asyncio
+    async def test_blocks_domain(self):
+        handler = create_async_intercept_handler(disable_resources=False, blocked_domains={"ads.example.com"})
+        route = _AsyncMockRoute("https://ads.example.com/track")
+        await handler(route)
+        assert route.aborted
+
+    @pytest.mark.asyncio
+    async def test_continues_non_blocked(self):
+        handler = create_async_intercept_handler(disable_resources=False, blocked_domains={"ads.example.com"})
+        route = _AsyncMockRoute("https://safe.example.com/page")
+        await handler(route)
+        assert route.continued
+
+    @pytest.mark.asyncio
+    async def test_blocks_subdomain(self):
+        handler = create_async_intercept_handler(disable_resources=False, blocked_domains={"tracker.io"})
+        route = _AsyncMockRoute("https://cdn.tracker.io/script.js")
+        await handler(route)
+        assert route.aborted
+
+    @pytest.mark.asyncio
+    async def test_does_not_block_partial_domain_match(self):
+        handler = create_async_intercept_handler(disable_resources=False, blocked_domains={"example.com"})
+        route = _AsyncMockRoute("https://notexample.com/page")
+        await handler(route)
+        assert route.continued
+
+
+class TestIsDomainBlocked:
+    """Test the frozenset-based domain matching helper."""
+
+    def test_exact_match(self):
+        domains = frozenset({"doubleclick.net"})
+        assert _is_domain_blocked("doubleclick.net", domains) is True
+
+    def test_subdomain_match(self):
+        domains = frozenset({"doubleclick.net"})
+        assert _is_domain_blocked("ads.doubleclick.net", domains) is True
+
+    def test_deep_subdomain_match(self):
+        domains = frozenset({"doubleclick.net"})
+        assert _is_domain_blocked("tracker.ads.doubleclick.net", domains) is True
+
+    def test_no_partial_match(self):
+        domains = frozenset({"doubleclick.net"})
+        assert _is_domain_blocked("notdoubleclick.net", domains) is False
+
+    def test_no_match(self):
+        domains = frozenset({"doubleclick.net"})
+        assert _is_domain_blocked("example.com", domains) is False
+
+    def test_empty_domains(self):
+        assert _is_domain_blocked("example.com", frozenset()) is False
+
+    def test_multiple_domains(self):
+        domains = frozenset({"ads.com", "tracker.io", "doubleclick.net"})
+        assert _is_domain_blocked("cdn.ads.com", domains) is True
+        assert _is_domain_blocked("tracker.io", domains) is True
+        assert _is_domain_blocked("safe.example.com", domains) is False
+
+
+class TestAdDomains:
+    """Test the built-in ad domain list."""
+
+    def test_ad_domains_is_frozenset(self):
+        from scrapling.engines.toolbelt.ad_domains import AD_DOMAINS
+
+        assert isinstance(AD_DOMAINS, frozenset)
+
+    def test_ad_domains_has_entries(self):
+        from scrapling.engines.toolbelt.ad_domains import AD_DOMAINS
+
+        assert len(AD_DOMAINS) > 1000
+
+    def test_ad_domains_contains_known_entries(self):
+        from scrapling.engines.toolbelt.ad_domains import AD_DOMAINS
+
+        assert "doubleclick.net" in AD_DOMAINS
+        assert "googlesyndication.com" in AD_DOMAINS
+
+
+class TestBlockAdsConfig:
+    """Test that block_ads merges ad domains into blocked_domains at config level."""
+
+    def test_block_ads_populates_blocked_domains(self):
+        from scrapling.engines._browsers._validators import PlaywrightConfig
+
+        config = PlaywrightConfig(block_ads=True)
+        assert config.blocked_domains is not None
+        assert len(config.blocked_domains) > 1000
+        assert "doubleclick.net" in config.blocked_domains
+
+    def test_block_ads_false_leaves_blocked_domains_none(self):
+        from scrapling.engines._browsers._validators import PlaywrightConfig
+
+        config = PlaywrightConfig(block_ads=False)
+        assert config.blocked_domains is None
+
+    def test_block_ads_merges_with_user_domains(self):
+        from scrapling.engines._browsers._validators import PlaywrightConfig
+
+        user_domains = {"my-custom-block.com"}
+        config = PlaywrightConfig(block_ads=True, blocked_domains=user_domains)
+        assert config.blocked_domains is not None
+        assert "my-custom-block.com" in config.blocked_domains
+        assert "doubleclick.net" in config.blocked_domains
+
+    def test_block_ads_does_not_modify_original_set(self):
+        from scrapling.engines._browsers._validators import PlaywrightConfig
+
+        user_domains = {"my-custom-block.com"}
+        _ = PlaywrightConfig(block_ads=True, blocked_domains=user_domains)
+        assert len(user_domains) == 1
